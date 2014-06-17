@@ -2,11 +2,31 @@
 
 module Hircine.Types where
 
+import Control.Monad.Trans.Reader
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
 import Data.Char
 import Data.Foldable (foldMap)
 import Data.Monoid
+
+
+data Connection = Connection
+    { recvLineHook :: IO Bytes
+    , sendLineHook :: Bytes -> IO ()
+    }
+
+type Hircine = ReaderT Connection IO
+
+runHircine :: Hircine a -> Connection -> IO a
+runHircine = runReaderT
+
+-- | Read a single line from the server, stripping the trailing CRLF.
+recvLine :: Hircine Bytes
+recvLine = ReaderT recvLineHook
+
+-- | Send a single line to the server, appending a trailing CRLF.
+sendLine :: Bytes -> Hircine ()
+sendLine s = ReaderT $ \conn -> sendLineHook conn s
 
 
 data Message = Message
@@ -45,6 +65,7 @@ testMessage = Message prefix command params trailing
     trailing = Just "Hello, world!"
 
 
+-- | Serialize a message, excluding the trailing CRLF.
 showMessage :: Message -> Bytes
 showMessage (Message prefix command params trailing)
     = foldr1 combine
@@ -52,7 +73,6 @@ showMessage (Message prefix command params trailing)
         , showCommand command
         , B.intercalate " " params
         , foldMap (":" <>) trailing ]
-      <> "\r\n"
   where
     combine "" b = b
     combine a "" = a
