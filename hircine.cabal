@@ -27,6 +27,7 @@ library
         network-simple,
         transformers
     default-language:    Haskell2010
+    ghc-options:         -Wall
 
 source-repository head
     type:                git
