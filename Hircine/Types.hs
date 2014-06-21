@@ -8,6 +8,7 @@ import qualified Data.ByteString.Char8 as B
 import Data.Char
 import Data.Foldable (foldMap)
 import Data.Monoid
+import Data.Word
 
 
 data Connection = Connection
@@ -37,13 +38,14 @@ data Message = Message
     deriving (Eq, Show)
 
 
+-- | A message can originate from a fellow user, or the server itself.
 data Prefix = PrefixServer Bytes | PrefixUser User
     deriving (Eq, Show)
 
 
 -- | A command can be either a sequence of uppercase ASCII letters, or
 -- a three digit code.
-data Command = Command Bytes | CommandNumber Int
+data Command = Command Bytes | StatusCode Word8 Word8 Word8
     deriving (Eq, Show)
 
 
@@ -86,7 +88,7 @@ showMessage (Message prefix command params trailing)
         <> foldMap ("@" <>) mhost
 
     showCommand (Command cmd) = cmd
-    showCommand (CommandNumber n) = B.pack (show n)
+    showCommand (StatusCode x y z) = B.pack (concatMap show [x, y, z])
 
 
 -- | Convert a nickname to lowercase, according to IRC rules.
