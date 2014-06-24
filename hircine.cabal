@@ -18,10 +18,12 @@ library
     exposed-modules:
         Hircine
         Hircine.Connect
+        Hircine.Parser
         Hircine.Types
     other-modules:
     build-depends:
         base == 4.*,
+        attoparsec,
         bytestring,
         network,
         network-simple,
