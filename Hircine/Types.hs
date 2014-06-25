@@ -21,6 +21,9 @@ type Hircine = ReaderT Connection IO
 runHircine :: Hircine a -> Connection -> IO a
 runHircine = runReaderT
 
+mkHircine :: (Connection -> IO a) -> Hircine a
+mkHircine = ReaderT
+
 -- | Read a single line from the server, stripping the trailing CRLF.
 recvLine :: Hircine Bytes
 recvLine = ReaderT recvLineHook

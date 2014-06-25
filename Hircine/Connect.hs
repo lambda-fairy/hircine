@@ -7,6 +7,7 @@ module Hircine.Connect
 
       -- * Utilities
     , mkConnection
+    , breakLines
 
     ) where
 
