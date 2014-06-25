@@ -1,9 +1,13 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances, OverloadedStrings #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | Simple IRC message parser.
 --
 -- The grammar accepted here is slightly different to that specified in
 -- the RFC, for simplicity and compatibility.
+--
+-- This module also includes 'IsString' instances for 'Message',
+-- 'Prefix', and 'Command', which accept the same syntax.
 
 module Hircine.Parser
     ( parseMessage
@@ -14,6 +18,7 @@ import Prelude hiding (takeWhile)
 import Control.Applicative
 import Data.Attoparsec
 import qualified Data.ByteString as B
+import Data.String (IsString(fromString))
 import Data.Word
 
 import Hircine.Types
@@ -22,6 +27,21 @@ import Hircine.Types
 -- | Parse a message. The input string should not have a trailing CRLF.
 parseMessage :: Bytes -> Either String Message
 parseMessage = parseOnly (message <* endOfInput)
+
+
+instance IsString Message where
+    fromString = fromStringDefault "message" message
+
+instance IsString Prefix where
+    fromString = fromStringDefault "prefix" prefix
+
+instance IsString Command where
+    fromString = fromStringDefault "command" command
+
+fromStringDefault :: String -> Parser a -> (String -> a)
+fromStringDefault ty p s = case parseOnly (p <* endOfInput) $ fromString s of
+    Left err -> error $ concat ["Invalid ", ty, ": ", show s, " (", err, ")"]
+    Right res -> res
 
 
 message :: Parser Message
