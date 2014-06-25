@@ -2,7 +2,7 @@
 
 -- | Simple IRC message parser.
 --
--- The grammar accepted here is slightly looser than that specified in
+-- The grammar accepted here is slightly different to that specified in
 -- the RFC, for simplicity and compatibility.
 
 module Hircine.Parser
@@ -34,13 +34,12 @@ message = Message
 
 prefix :: Parser Prefix
 prefix = token . (<?> "prefix") $
-    string ":" *> (PrefixUser <$> user <|> PrefixServer <$> ident)
-
-user :: Parser User
-user = User
-    <$> ident
-    <*> optional (string "!" *> ident)
-    <*> optional (string "@" *> ident)
+    string ":" *> (user <|> FromServer <$> ident)
+  where
+    user = FromUser
+        <$> ident
+        <*> (string "!" *> ident)
+        <*> (string "@" *> ident)
 
 
 command :: Parser Command

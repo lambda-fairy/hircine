@@ -39,7 +39,11 @@ data Message = Message
 
 
 -- | A message can originate from a fellow user, or the server itself.
-data Prefix = PrefixServer Bytes | PrefixUser User
+--
+-- If the former, the prefix must specify the nickname, username and
+-- host address.
+--
+data Prefix = FromUser Bytes Bytes Bytes | FromServer Bytes
     deriving (Eq, Show)
 
 
@@ -49,19 +53,10 @@ data Command = Command Bytes | StatusCode Word8 Word8 Word8
     deriving (Eq, Show)
 
 
--- | A user specification includes a nickname, a username and a host
--- address. The latter two may be omitted.
-data User = User
-    { userNick :: Bytes
-    , userUser :: Maybe Bytes
-    , userHost :: Maybe Bytes }
-    deriving (Eq, Show)
-
-
 testMessage :: Message
 testMessage = Message prefix command params trailing
   where
-    prefix = Just . PrefixUser $ User "lfairy" (Just "ducks") (Just "geese")
+    prefix = Just $ FromUser "lfairy" "ducks" "geese"
     command = Command "PRIVMSG"
     params = ["#haskell"]
     trailing = Just "Hello, world!"
@@ -80,12 +75,9 @@ showMessage (Message prefix command params trailing)
     combine a "" = a
     combine a b = a <> " " <> b
 
-    showPrefix (PrefixServer host) = ":" <> host
-    showPrefix (PrefixUser user) = ":" <> showUser user
-
-    showUser (User nick muser mhost) = nick
-        <> foldMap ("!" <>) muser
-        <> foldMap ("@" <>) mhost
+    showPrefix (FromServer host) = ":" <> host
+    showPrefix (FromUser nick user host)
+        = mconcat [nick, "!", user, "@", host]
 
     showCommand (Command cmd) = cmd
     showCommand (StatusCode x y z) = B.pack (concatMap show [x, y, z])
