@@ -2,7 +2,6 @@
 
 module Hircine.Types where
 
-import Control.Monad.Trans.Reader
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
 import Data.Char
@@ -11,26 +10,15 @@ import Data.Monoid
 import Data.Word
 
 
-data Connection = Connection
-    { recvLineHook :: IO Bytes
-    , sendLineHook :: Bytes -> IO ()
+data Connection = Connection {
+
+    -- | Read a single line from the server, stripping the trailing CRLF.
+    recvLine :: IO Bytes,
+
+    -- | Send a single line to the server, appending a trailing CRLF.
+    sendLine :: Bytes -> IO ()
+
     }
-
-type Hircine = ReaderT Connection IO
-
-runHircine :: Hircine a -> Connection -> IO a
-runHircine = runReaderT
-
-mkHircine :: (Connection -> IO a) -> Hircine a
-mkHircine = ReaderT
-
--- | Read a single line from the server, stripping the trailing CRLF.
-recvLine :: Hircine Bytes
-recvLine = ReaderT recvLineHook
-
--- | Send a single line to the server, appending a trailing CRLF.
-sendLine :: Bytes -> Hircine ()
-sendLine s = ReaderT $ \conn -> sendLineHook conn s
 
 
 data Message = Message

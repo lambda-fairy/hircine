@@ -22,11 +22,11 @@ import Hircine.Types
 
 
 -- | Run a Hircine action, connecting to the given server automatically.
-hircine :: HostName -> ServiceName -> Hircine a -> IO a
-hircine host port m
+hircine :: HostName -> ServiceName -> (Connection -> IO a) -> IO a
+hircine host port k
     = connect host port $ \(sock, _addr) ->
         mkConnection (S.recv sock 16384) (S.sendAll sock)
-            >>= runHircine m
+            >>= k
 
 
 -- | Build a connection from a @recv@ and @send@ pair.
