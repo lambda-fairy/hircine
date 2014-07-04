@@ -4,9 +4,11 @@ module Hircine.Types where
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
-import Data.Char
 import Data.Foldable (foldMap)
 import Data.Monoid
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import Data.Text (Text)
 import Data.Word
 
 
@@ -74,7 +76,8 @@ showMessage (Message prefix command params trailing)
     showCommand (StatusCode x y z) = B.pack (concatMap show [x, y, z])
 
 
--- | Convert a nickname to lowercase, according to IRC rules.
+-- | The 'Nick' type is equivalent to 'Text', except it compares case
+-- insensitively according to IRC rules.
 --
 -- From RFC 1459, section 2.2:
 --
@@ -83,14 +86,44 @@ showMessage (Message prefix command params trailing)
 -- respectively. This is a critical issue when determining the
 -- equivalence of two nicknames."
 --
-caseFoldNick :: Bytes -> Bytes
-caseFoldNick = B.map fold
+-- Not all servers follow this standard – SynIRC does not – but enough
+-- do to warrant a special case.
+--
+-- Note that this is 'Text', not 'ByteString'. Some servers do allow
+-- Unicode nicks. Don't ask why.
+--
+data Nick = Nick
+    { nickText :: !Text
+    , nickFold :: !Text
+    }
+
+instance Eq Nick where
+    Nick _ a == Nick _ b = a == b
+
+instance Ord Nick where
+    Nick _ a `compare` Nick _ b = compare a b
+
+instance Show Nick where
+    show (Nick n _) = "mkNick " ++ show n
+
+-- | Create a 'Nick'.
+mkNick :: Text -> Nick
+mkNick s = Nick s $ Text.map fixup (Text.toCaseFold s)
   where
-    fold c = case c of
+    fixup c = case c of
         '[' -> '{'
         '\\' -> '|'
         ']' -> '}'
-        _ -> toLower c
+        _ -> c
+
+
+decode :: Bytes -> Text
+decode s = case Text.decodeUtf8' s of
+    Right s' -> s'
+    Left _ -> Text.decodeLatin1 s
+
+encode :: Text -> Bytes
+encode = Text.encodeUtf8
 
 
 -- | Convenient synonym for 'ByteString'.
