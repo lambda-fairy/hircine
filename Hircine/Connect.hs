@@ -13,7 +13,7 @@ module Hircine.Connect
 
 import Control.Applicative
 import qualified Data.ByteString.Char8 as B
-import Data.IORef
+import Control.Concurrent.MVar
 import Data.Monoid
 import Network.Simple.TCP (HostName, ServiceName, connect)
 import qualified Network.Socket.ByteString as S
@@ -40,20 +40,29 @@ mkConnection recv send = do
     return $ Connection recv' send'
 
 -- | Convert an action that reads blocks to an action that reads lines.
+--
+-- Returned lines are guaranteed to be non-empty.
+--
 breakLines :: IO Bytes -> IO (IO Bytes)
-breakLines recv = loop <$> newIORef B.empty
+breakLines recv = mkReader <$> newMVar B.empty
   where
-    loop r = do
-        buffer <- readIORef r
-        case B.findIndex isCRLF buffer of
-            Nothing -> do
-                append <- recv
-                writeIORef r $! buffer <> append
-                loop r
-            Just i -> do
-                let (line, buffer') = B.splitAt i buffer
-                writeIORef r $! B.dropWhile isCRLF buffer'
-                return line
+    mkReader box = do
+        chunk <- takeMVar box
+        (line, chunk') <- loop [] chunk
+        putMVar box chunk'
+        return line
+
+    -- Invariant: there are no newlines in xs
+    loop buffer chunk =
+        case B.findIndex isCRLF chunk of
+            Nothing -> recv >>= loop (chunk : buffer)
+            Just i ->
+                let (front, back) = B.splitAt i chunk
+                    line = B.concat . reverse $ front : buffer
+                    back' = B.dropWhile isCRLF back
+                in if B.null line
+                    then recv >>= loop [back']  -- Discard blank lines
+                    else return (line, back')
 
 isCRLF :: Char -> Bool
 isCRLF c = c == '\r' || c == '\n'
