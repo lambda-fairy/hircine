@@ -26,7 +26,7 @@ import Hircine.Types
 
 -- | Parse a message. The input string should not have a trailing CRLF.
 parseMessage :: Bytes -> Either String Message
-parseMessage = parseOnly (message <* endOfInput)
+parseMessage = parseOnly $ space *> message <* endOfInput
 
 
 instance IsString Message where
@@ -64,7 +64,7 @@ prefix = token . (<?> "prefix") $
 
 command :: Parser Command
 command = token . (<?> "command") $
-        Command <$> takeWhile (inClass "A-Za-z")
+        Command <$> takeWhile1 (inClass "A-Za-z")
     <|> StatusCode <$> digit <*> digit <*> digit
 
 
@@ -75,14 +75,14 @@ params = many . token . (<?> "parameters") $
 
 
 trailing :: Parser Bytes
-trailing = string ":" *> takeByteString
+trailing = string ":" *> takeWhile (notInClass "\r\n")
 
 
 digit :: Parser Word8
 digit = subtract 0x30 <$> satisfy (inClass "0-9")
 
 ident :: Parser Bytes
-ident = takeWhile (inClass "-./0-9A-Z[\\]^_`a-z{|}~")
+ident = takeWhile1 (inClass "-./0-9A-Z[\\]^_`a-z{|}~")
 
 token :: Parser a -> Parser a
 token = (<* space)
