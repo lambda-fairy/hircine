@@ -23,7 +23,7 @@ library
     other-modules:
     build-depends:
         base == 4.*,
-        attoparsec,
+        attoparsec == 0.12.*,
         bytestring,
         network,
         network-simple,

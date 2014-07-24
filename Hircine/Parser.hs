@@ -16,7 +16,7 @@ module Hircine.Parser
 import Prelude hiding (takeWhile)
 
 import Control.Applicative
-import Data.Attoparsec
+import Data.Attoparsec.ByteString
 import qualified Data.ByteString as B
 import Data.String (IsString(fromString))
 import Data.Word
