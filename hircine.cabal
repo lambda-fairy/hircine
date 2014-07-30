@@ -17,14 +17,16 @@ cabal-version:       >= 1.10
 library
     exposed-modules:
         Hircine
-        Hircine.Connect
-        Hircine.Parser
-        Hircine.Types
+        Hircine.Core
+        Hircine.Stream
     other-modules:
+        Hircine.Core.Types
+        Hircine.Core.Parser
     build-depends:
         base == 4.*,
         attoparsec == 0.12.*,
         bytestring,
+        io-streams,
         network,
         network-simple,
         text,

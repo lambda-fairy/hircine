@@ -1,9 +1,7 @@
-module Hircine
-    ( module Hircine.Connect
-    , module Hircine.Parser
-    , module Hircine.Types
+module Hircine (
+    module Hircine.Core,
+    module Hircine.Stream
     ) where
 
-import Hircine.Connect
-import Hircine.Parser
-import Hircine.Types
+import Hircine.Core
+import Hircine.Stream
