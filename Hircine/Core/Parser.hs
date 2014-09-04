@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Hircine.Core.Parser (
     parseMessage
@@ -12,6 +13,7 @@ import Control.Monad
 import Data.Attoparsec.ByteString.Char8
 import qualified Data.ByteString.Char8 as B
 import Data.Char (toUpper)
+import Data.String
 import Data.Word
 
 import Hircine.Core.Types
@@ -21,6 +23,12 @@ import Hircine.Core.Types
 -- message, with no trailing newlines.
 parseMessage :: Bytes -> Either String Message
 parseMessage = parseOnly $ message <* skipSpace <* endOfInput
+
+
+instance IsString Method where
+    fromString s = case parseOnly (method <* endOfInput) $ B.pack s of
+        Left _ -> error $ "invalid method " ++ show s
+        Right r -> r
 
 
 message :: Parser Message
