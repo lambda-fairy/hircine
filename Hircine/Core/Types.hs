@@ -5,6 +5,7 @@ module Hircine.Core.Types where
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
+import Data.Char
 import Data.Foldable (foldMap)
 import Data.Monoid
 import qualified Data.Text.Encoding as Text
@@ -39,8 +40,7 @@ data Origin = Server !Bytes | User !Bytes !Bytes !Bytes
 
 data Command = Command {
     cmdMethod :: !Method,
-    cmdParams :: ![Bytes],
-    cmdTrailing :: !(Maybe Bytes)
+    cmdParams :: ![Bytes]
     } deriving (Eq, Read, Show)
 
 
@@ -53,34 +53,34 @@ data Method = Textual !Bytes | Numeric !Word8 !Word8 !Word8
 -- | Render a message into a string.
 renderMessage :: Message -> Bytes
 renderMessage (Message origin command)
-    = foldMap renderOrigin origin >< renderCommand command
+    = foldMap renderOrigin origin <> renderCommand command
   where
-    renderOrigin (Server host) = ":" <> host
+    renderOrigin (Server host) = ":" <> host <> " "
     renderOrigin (User nick user host)
-        = mconcat [":", nick, "!", user, "@", host]
+        = mconcat [":", nick, "!", user, "@", host, " "]
 
 renderCommand :: Command -> Bytes
-renderCommand (Command method params trailing)
-    = renderMethod method >< B.unwords params >< foldMap (":" <>) trailing
+renderCommand (Command method params)
+    = renderMethod method <> renderParams params
   where
     renderMethod (Textual name) = name
     renderMethod (Numeric x y z) = B.pack (concatMap show [x, y, z])
 
-(><) :: Bytes -> Bytes -> Bytes
-"" >< b = b
-a >< "" = a
-a >< b = a <> " " <> b
+    renderParams ps = case ps of
+        [] -> ""
+        [p] | shouldEscape p -> " :" <> p
+            | otherwise -> " " <> p
+        (p:ps') -> " " <> p <> renderParams ps'
 
-infixr 5 ><
+    shouldEscape p = B.null p || B.any (\c -> c == ':' || isSpace c) p
 
 
 testMessage :: Message
-testMessage = Message origin $ Command method params trailing
+testMessage = Message origin $ Command method params
   where
     origin = Just $ User "lfairy" "ducks" "geese"
     method = Textual "PRIVMSG"
-    params = ["#haskell"]
-    trailing = Just "Hello, world!"
+    params = ["#haskell", "Hello, world!"]
 
 
 -- | Try to decode using UTF-8, then Latin-1.

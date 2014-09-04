@@ -39,7 +39,7 @@ origin = ":" *> (user <|> Server <$> takeWhile1 (not . isSpace))
 
 
 command :: Parser Command
-command = Command <$> method <*> params <*> optional trailing
+command = Command <$> method <*> params
 
 
 method :: Parser Method
@@ -48,11 +48,13 @@ method = Textual . B.map toUpper <$> takeWhile1 isAlpha_ascii
 
 
 params :: Parser [Bytes]
-params = many (skipSpace1 *> takeWhile1 (notInClass " :"))
-
-
-trailing :: Parser Bytes
-trailing = skipSpace1 *> ":" *> takeByteString
+params = many (skipSpace1 *> param)
+  where
+    param = do
+        c <- anyChar
+        if c == ':'
+            then takeByteString
+            else B.cons c <$> takeWhile (not . isSpace)
 
 
 digit' :: Parser Word8
