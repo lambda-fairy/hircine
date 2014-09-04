@@ -10,6 +10,7 @@ module Hircine.Core (
     -- * Parsing and rendering
     parseMessage,
     renderMessage,
+    renderCommand,
 
     -- * Utilities
     decode,

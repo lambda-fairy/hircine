@@ -9,7 +9,8 @@ module Hircine.Stream (
 
     -- * Less important stuff
     parseMessages,
-    renderMessages
+    renderMessages,
+    renderCommands
 
     ) where
 
@@ -30,11 +31,11 @@ import Hircine.Core
 
 -- | Convert a socket to a pair of 'Message' streams.
 socketToMessageStreams
-    :: Socket -> IO (InputStream Message, OutputStream Message)
+    :: Socket -> IO (InputStream Message, OutputStream Command)
 socketToMessageStreams sock = do
     (is, os) <- S.socketToStreams sock
     (,) <$> parseMessages is
-        <*> renderMessages os
+        <*> renderCommands os
 
 
 parseMessages :: InputStream Bytes -> IO (InputStream Message)
@@ -44,6 +45,10 @@ parseMessages = splitLines
 
 renderMessages :: OutputStream Bytes -> IO (OutputStream Message)
 renderMessages = S.contramap ((<> "\r\n") . renderMessage)
+
+
+renderCommands :: OutputStream Bytes -> IO (OutputStream Command)
+renderCommands = renderMessages >=> S.contramap (Message Nothing)
 
 
 -- | Split a byte stream into lines.
