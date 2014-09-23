@@ -18,6 +18,8 @@ library
     exposed-modules:
         Hircine
         Hircine.Core
+        Hircine.Command
+        Hircine.Framework
         Hircine.Stream
     other-modules:
         Hircine.Core.Types
@@ -26,11 +28,13 @@ library
         base == 4.*,
         attoparsec == 0.12.*,
         bytestring,
+        contravariant,
         io-streams,
         network,
         network-simple,
         text,
-        transformers
+        transformers,
+        void
     default-language:    Haskell2010
     ghc-options:         -Wall
 
