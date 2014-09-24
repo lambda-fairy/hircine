@@ -1,5 +1,3 @@
-{-# LANGUAGE FlexibleInstances #-}
-
 -- | A framework for writing IRC bots.
 --
 -- A bot consists of a 'Handler' that receives IRC messages and performs
@@ -22,7 +20,6 @@ import Control.Monad
 import Data.Functor.Contravariant
 import Data.Functor.Contravariant.Divisible
 import Data.Monoid
-import Data.Void
 import System.IO.Streams (InputStream, OutputStream)
 import qualified System.IO.Streams as S
 
@@ -32,32 +29,29 @@ import Hircine.Command
 
 -- | An IRC event handler.
 newtype Handler a = Handler {
-    reifyHandler :: ([Command] -> IO ()) -> IO (a -> IO ())
+    unHandler :: SendFn -> IO (Op (Action IO) a)
     }
 
 instance Contravariant Handler where
-    contramap f (Handler h) = Handler $ fmap (fmap (. f)) h
+    contramap f (Handler h) = Handler $ fmap (fmap (contramap f)) h
 
 instance Divisible Handler where
-    divide f (Handler g) (Handler h) = Handler $ \send -> do
-        g' <- g send
-        h' <- h send
-        return $ \x -> case f x of
-            (a, b) -> g' a >> h' b
-
-    conquer = Handler $ const $ pure $ const $ pure ()
+    divide f (Handler g) (Handler h) = Handler $ liftA2 (liftA2 (divide f)) g h
+    conquer = Handler $ pure $ pure $ conquer
 
 instance Decidable Handler where
-    lose f = Handler $ const $ pure $ \a -> pure $ absurd (f a)
+    lose f = Handler $ pure $ pure $ lose f
+    choose f (Handler g) (Handler h) = Handler $ liftA2 (liftA2 (choose f)) g h
 
-    choose f (Handler g) (Handler h) = Handler $ \send -> do
-        g' <- g send
-        h' <- h send
-        return $ either g' h' . f
 
-instance Monoid (Handler a) where
-    mempty = conquer
-    mappend = divide (\a -> (a, a))
+type SendFn = [Command] -> IO ()
+
+
+makeHandler :: (SendFn -> IO (a -> IO ())) -> Handler a
+makeHandler h = Handler $ fmap (Op . (Action .)) . h
+
+reifyHandler :: Handler a -> SendFn -> IO (a -> IO ())
+reifyHandler (Handler h) = fmap ((runAction .) . getOp) . h
 
 
 -- | Lift a handler that accepts type @a@ to one that accepts @Maybe a@.
@@ -71,12 +65,12 @@ contramapMaybe :: Decidable f => (a -> Maybe b) -> f b -> f a
 contramapMaybe f = contramap f . perhaps
 
 
-handler :: IsCommand a => (([Command] -> IO ()) -> Msg a -> IO ()) -> Handler Message
+handler :: IsCommand a => (SendFn -> Msg a -> IO ()) -> Handler Message
 handler = contramap fromMessage . perhaps . simpleHandler
 
 
-simpleHandler :: (([Command] -> IO ()) -> a -> IO ()) -> Handler a
-simpleHandler h = Handler $ \send -> return $ \message -> h send message
+simpleHandler :: (SendFn -> a -> IO ()) -> Handler a
+simpleHandler h = makeHandler $ \send -> return $ \message -> h send message
 
 
 asyncHandler :: Handler a -> (Handler a -> IO b) -> IO b
@@ -120,3 +114,10 @@ runHandler h is os = do
                     loop )
 
     loop
+
+
+newtype Action f = Action { runAction :: f () }
+
+instance Applicative f => Monoid (Action f) where
+    mempty = Action $ pure ()
+    mappend (Action a) (Action b) = Action $ a *> b
