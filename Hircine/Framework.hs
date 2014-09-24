@@ -3,78 +3,66 @@
 -- A bot consists of a 'Handler' that receives IRC messages and performs
 -- 'IO' in response.
 --
--- * Use 'handler' to create a new event handler.
+-- * Use 'asyncHandler' or 'blockingHandler' to create a new event handler.
 --
--- * Use '<>' or 'mconcat' to mix multiple handlers together.
+-- * Use 'Data.Monoid.<>' or 'divide' or 'choose' to mix multiple
+--   handlers together.
 --
 -- * Use 'runHandler' to execute your bot.
 --
 
-module Hircine.Framework where
+module Hircine.Framework (
+
+    -- * The @Handler@ type
+    Handler(),
+
+    -- * Constructing @Handler@s
+    asyncHandler,
+    blockingHandler,
+    async,
+    SendFn,
+
+    -- * Executing @Handler@s
+    runHandler,
+
+    -- * Filtering messages
+    perhaps,
+    contramapMaybe
+
+    ) where
 
 
-import Control.Applicative
 import Control.Concurrent
 import Control.Exception (bracket)
 import Control.Monad
 import Data.Functor.Contravariant
 import Data.Functor.Contravariant.Divisible
-import Data.Monoid
 import System.IO.Streams (InputStream, OutputStream)
 import qualified System.IO.Streams as S
 
 import Hircine.Core
 import Hircine.Command
+import Hircine.Framework.Internal
 
 
--- | An IRC event handler.
-newtype Handler a = Handler {
-    unHandler :: SendFn -> IO (Op (Action IO) a)
-    }
-
-instance Contravariant Handler where
-    contramap f (Handler h) = Handler $ fmap (fmap (contramap f)) h
-
-instance Divisible Handler where
-    divide f (Handler g) (Handler h) = Handler $ liftA2 (liftA2 (divide f)) g h
-    conquer = Handler $ pure $ pure $ conquer
-
-instance Decidable Handler where
-    lose f = Handler $ pure $ pure $ lose f
-    choose f (Handler g) (Handler h) = Handler $ liftA2 (liftA2 (choose f)) g h
+-- | Create a handler that runs in a separate thread.
+--
+-- @
+-- asyncHandler = 'async' . 'blockingHandler'
+-- @
+--
+asyncHandler :: IsCommand a => (SendFn -> Msg a -> IO ()) -> (Handler Message -> IO b) -> IO b
+asyncHandler = async . blockingHandler
 
 
-type SendFn = [Command] -> IO ()
+-- | Create a handler that runs in the main thread.
+blockingHandler :: IsCommand a => (SendFn -> Msg a -> IO ()) -> Handler Message
+blockingHandler = contramap fromMessage . perhaps . makeHandler'
 
 
-makeHandler :: (SendFn -> IO (a -> IO ())) -> Handler a
-makeHandler h = Handler $ fmap (Op . (Action .)) . h
-
-reifyHandler :: Handler a -> SendFn -> IO (a -> IO ())
-reifyHandler (Handler h) = fmap ((runAction .) . getOp) . h
-
-
--- | Lift a handler that accepts type @a@ to one that accepts @Maybe a@.
--- Any @Just@ values are handled as usual; @Nothing@ values are ignored.
-perhaps :: Decidable f => f a -> f (Maybe a)
-perhaps = choose (maybe (Left ()) Right) conquer
-
-
--- | Filter input.
-contramapMaybe :: Decidable f => (a -> Maybe b) -> f b -> f a
-contramapMaybe f = contramap f . perhaps
-
-
-handler :: IsCommand a => (SendFn -> Msg a -> IO ()) -> Handler Message
-handler = contramap fromMessage . perhaps . simpleHandler
-
-
-simpleHandler :: (SendFn -> a -> IO ()) -> Handler a
-simpleHandler h = makeHandler $ \send -> return $ \message -> h send message
-
-
-asyncHandler :: Handler a -> (Handler a -> IO b) -> IO b
-asyncHandler h k = bracket start end middle
+-- | Run a 'Handler' in a separate thread.
+async :: Handler a -> (Handler a -> IO b) -> IO b
+async h k = bracket start end middle
   where
 
     start = do
@@ -89,7 +77,7 @@ asyncHandler h k = bracket start end middle
 
     end (_, _, thread) = killThread thread
 
-    middle (chan, sendRef, _) = k $ simpleHandler $ \send message -> do
+    middle (chan, sendRef, _) = k $ makeHandler' $ \send message -> do
         putMVar sendRef send
         writeChan chan message
 
@@ -116,8 +104,12 @@ runHandler h is os = do
     loop
 
 
-newtype Action f = Action { runAction :: f () }
+-- | Lift a handler that accepts type @a@ to one that accepts @Maybe a@.
+-- Any @Just@ values are handled as usual; @Nothing@ values are ignored.
+perhaps :: Decidable f => f a -> f (Maybe a)
+perhaps = choose (maybe (Left ()) Right) conquer
 
-instance Applicative f => Monoid (Action f) where
-    mempty = Action $ pure ()
-    mappend (Action a) (Action b) = Action $ a *> b
+
+-- | Filter input.
+contramapMaybe :: Decidable f => (a -> Maybe b) -> f b -> f a
+contramapMaybe f = contramap f . perhaps
