@@ -29,7 +29,7 @@ library
         base == 4.*,
         attoparsec == 0.12.*,
         bytestring,
-        contravariant,
+        contravariant == 1.2.*,
         io-streams,
         network,
         network-simple,
