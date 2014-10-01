@@ -36,6 +36,9 @@ instance Decidable Handler where
     lose f = Handler $ pure $ pure $ lose f
     choose f (Handler g) (Handler h) = Handler $ liftA2 (liftA2 (choose f)) g h
 
+instance Monoid (Handler a) where
+    mempty = conquer
+    mappend = divide (\a -> (a, a))
 
 type SendFn = [Command] -> IO ()
 
