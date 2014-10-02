@@ -77,9 +77,9 @@ async h k = bracket start end middle
 
     end (_, _, thread) = killThread thread
 
-    middle (chan, sendRef, _) = k $ makeHandler' $ \send message -> do
+    middle (chan, sendRef, _) = k $ makeHandler $ \send -> do
         putMVar sendRef send
-        writeChan chan message
+        return $ writeChan chan
 
 
 -- | Poll the given 'InputStream', calling the given 'Handler' on every
