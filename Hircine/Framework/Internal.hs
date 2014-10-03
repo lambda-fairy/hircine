@@ -16,7 +16,7 @@ import Data.Monoid
 import Hircine.Core
 
 
--- | A 'Handler' accepts IRC 'Messages' and performs I/O operations in
+-- | A @'Handler' a@ accepts inputs of type @a@ and performs 'IO' in
 -- response.
 newtype Handler a = Handler {
     unHandler :: SendFn -> IO (Op (Action IO) a)
@@ -40,6 +40,7 @@ instance Monoid (Handler a) where
     mempty = conquer
     mappend = divide (\a -> (a, a))
 
+-- | A callback for sending 'Command's back to the server.
 type SendFn = [Command] -> IO ()
 
 

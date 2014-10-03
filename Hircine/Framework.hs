@@ -26,8 +26,8 @@ module Hircine.Framework (
     runHandler,
 
     -- * Filtering messages
-    perhaps,
-    contramapMaybe
+    contramapMaybe,
+    perhaps
 
     ) where
 
@@ -35,7 +35,6 @@ module Hircine.Framework (
 import Control.Concurrent
 import Control.Exception (bracket)
 import Control.Monad
-import Data.Functor.Contravariant
 import Data.Functor.Contravariant.Divisible
 import System.IO.Streams (InputStream, OutputStream)
 import qualified System.IO.Streams as S
@@ -56,11 +55,16 @@ asyncHandler = async . blockingHandler
 
 
 -- | Create a handler that runs in the main thread.
+--
+-- /Be careful with this function!/ If your handler blocks, or throws an
+-- exception, then it'll bring down the whole bot with it. If in doubt,
+-- use 'asyncHandler' instead.
+--
 blockingHandler :: IsCommand a => (SendFn -> Msg a -> IO ()) -> Handler Message
-blockingHandler = contramap fromMessage . perhaps . makeHandler'
+blockingHandler = contramapMaybe fromMessage . makeHandler'
 
 
--- | Run a 'Handler' in a separate thread.
+-- | Run an existing 'Handler' in a separate thread.
 async :: Handler a -> (Handler a -> IO b) -> IO b
 async h k = bracket start end middle
   where
@@ -82,7 +86,7 @@ async h k = bracket start end middle
         return $ writeChan chan
 
 
--- | Poll the given 'InputStream', calling the given 'Handler' on every
+-- | Poll the given 'InputStream', calling the 'Handler' on every
 -- message received.
 runHandler :: Handler Message -> InputStream Message -> OutputStream Command -> IO ()
 runHandler h is os = do
@@ -104,12 +108,20 @@ runHandler h is os = do
     loop
 
 
--- | Lift a handler that accepts type @a@ to one that accepts @Maybe a@.
--- Any @Just@ values are handled as usual; @Nothing@ values are ignored.
-perhaps :: Decidable f => f a -> f (Maybe a)
-perhaps = choose (maybe (Left ()) Right) conquer
-
-
--- | Filter input.
+-- | @contramapMaybe@ is a version of
+-- 'Data.Functor.Contravariant.contramap' which can throw out elements.
+-- If the given function returns @Nothing@, the input is dropped.
 contramapMaybe :: Decidable f => (a -> Maybe b) -> f b -> f a
-contramapMaybe f = contramap f . perhaps
+contramapMaybe f = choose (maybe (Left ()) Right . f) conquer
+
+
+-- | @perhaps@ converts a handler of type @a@ to a handler of type
+-- @Maybe a@. Any @Just@ values are passed to the underlying handler;
+-- @Nothing@ values are ignored.
+--
+-- @
+-- perhaps = 'contramapMaybe' id
+-- @
+--
+perhaps :: Decidable f => f a -> f (Maybe a)
+perhaps = contramapMaybe id
