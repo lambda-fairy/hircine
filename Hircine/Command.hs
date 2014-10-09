@@ -64,6 +64,16 @@ instance IsCommand Pong where
     toCommand (Pong server1 server2) = Command "PONG" $ server1 : maybeToList server2
 
 
+data User_ = User_ !Bytes !Bytes
+    deriving (Read, Show)
+
+instance IsCommand User_ where
+    fromCommand (Command "USER" [user, _, _, realname]) = Just $ User_ user realname
+    fromCommand _ = Nothing
+
+    toCommand (User_ user realname) = Command "USER" [user, "0", "*", realname]
+
+
 data PrivMsg = PrivMsg ![Bytes] !Bytes
     deriving (Read, Show)
 
