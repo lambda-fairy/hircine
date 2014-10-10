@@ -10,6 +10,7 @@ import Data.Foldable (foldMap)
 import Data.Monoid
 import qualified Data.Text.Encoding as Text
 import Data.Text (Text)
+import qualified Data.Text as Text
 import Data.Word
 
 
@@ -73,6 +74,13 @@ renderCommand (Command method params)
         (p:ps') -> " " <> p <> renderParams ps'
 
     shouldEscape p = B.null p || B.any (\c -> c == ':' || isSpace c) p
+
+
+showMessage :: Message -> String
+showMessage = Text.unpack . decode . renderMessage
+
+showCommand :: Command -> String
+showCommand = Text.unpack . decode . renderCommand
 
 
 testMessage :: Message
