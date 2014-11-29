@@ -27,8 +27,7 @@ module Hircine.Framework (
 
     -- * Filtering messages
     contramapMaybe,
-    perhaps,
-    listenOutput
+    perhaps
 
     ) where
 

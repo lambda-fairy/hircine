@@ -4,8 +4,7 @@ module Hircine.Framework.Internal (
     SendFn,
     makeHandler,
     makeHandler',
-    reifyHandler,
-    listenOutput
+    reifyHandler
     ) where
 
 
@@ -53,12 +52,6 @@ makeHandler' h = makeHandler $ \send -> return $ \message -> h send message
 
 reifyHandler :: Handler a -> SendFn -> IO (a -> IO ())
 reifyHandler (Handler h) = fmap ((runAction .) . getOp) . h
-
--- | Eavesdrop on outgoing commands before they are sent to the server.
--- Useful for debugging.
-listenOutput :: ([Command] -> IO ()) -> Handler a -> Handler a
-listenOutput f (Handler h)
-    = Handler $ \send -> h $ \commands -> f commands >> send commands
 
 
 newtype Action f = Action { runAction :: f () }
