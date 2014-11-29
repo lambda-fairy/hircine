@@ -30,6 +30,7 @@ library
         attoparsec == 0.12.*,
         bytestring,
         contravariant == 1.2.*,
+        kan-extensions,
         io-streams,
         network,
         network-simple,

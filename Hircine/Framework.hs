@@ -3,7 +3,7 @@
 -- A bot consists of a 'Handler' that receives IRC messages and performs
 -- 'IO' in response.
 --
--- * Use 'asyncHandler' or 'blockingHandler' to create a new event handler.
+-- * Use 'async' or 'blocking' to create a new event handler.
 --
 -- * Use 'Data.Monoid.<>' or 'divide' or 'choose' to mix multiple
 --   handlers together.
@@ -17,9 +17,9 @@ module Hircine.Framework (
     Handler(),
 
     -- * Constructing @Handler@s
-    asyncHandler,
-    blockingHandler,
     async,
+    blocking,
+    asyncify,
     SendFn,
 
     -- * Executing @Handler@s
@@ -35,9 +35,11 @@ module Hircine.Framework (
     ) where
 
 
+import Control.Applicative
 import Control.Concurrent
 import Control.Exception (bracket)
 import Control.Monad
+import Control.Monad.Codensity
 import Data.Functor.Contravariant.Divisible
 import System.IO.Streams (InputStream, OutputStream)
 import qualified System.IO.Streams as S
@@ -50,26 +52,26 @@ import Hircine.Framework.Internal
 -- | Create a handler that runs in a separate thread.
 --
 -- @
--- asyncHandler = 'async' . 'blockingHandler'
+-- async = 'asyncify' <=< 'blocking'
 -- @
 --
-asyncHandler :: IsCommand a => (SendFn -> Msg a -> IO ()) -> (Handler Message -> IO b) -> IO b
-asyncHandler = async . blockingHandler
+async :: (SendFn -> a -> IO ()) -> Codensity IO (Handler a)
+async = asyncify <=< blocking
 
 
 -- | Create a handler that runs in the main thread.
 --
 -- /Be careful with this function!/ If your handler blocks, or throws an
 -- exception, then it'll bring down the whole bot with it. If in doubt,
--- use 'asyncHandler' instead.
+-- use 'async' instead.
 --
-blockingHandler :: IsCommand a => (SendFn -> Msg a -> IO ()) -> Handler Message
-blockingHandler = contramapMaybe fromMessage . makeHandler'
+blocking :: (SendFn -> a -> IO ()) -> Codensity IO (Handler a)
+blocking = pure . makeHandler'
 
 
--- | Run an existing 'Handler' in a separate thread.
-async :: Handler a -> (Handler a -> IO b) -> IO b
-async h k = bracket start end middle
+-- | Run an existing (blocking) 'Handler' in a separate thread.
+asyncify :: Handler a -> Codensity IO (Handler a)
+asyncify h = Codensity $ bracket start end . middle
   where
 
     start = do
@@ -84,31 +86,32 @@ async h k = bracket start end middle
 
     end (_, _, thread) = killThread thread
 
-    middle (chan, sendRef, _) = k $ makeHandler $ \send -> do
+    middle k (chan, sendRef, _) = k $ makeHandler $ \send -> do
         putMVar sendRef send
         return $ writeChan chan
 
 
 -- | Poll the given 'InputStream', calling the 'Handler' on every
 -- message received.
-runHandler :: Handler Message -> InputStream Message -> OutputStream Command -> IO ()
-runHandler h is os = do
+runHandler :: IsCommand a => Codensity IO (Handler (Msg a))
+    -> InputStream Message -> OutputStream Command -> IO ()
+runHandler (Codensity withHandler) is os = do
     -- Since io-streams isn't thread-safe, we must guard against
     -- concurrent writes
     writeLock <- newMVar ()
 
     let send cs =
+            -- TODO: some sort of buffering here would be nice
             withMVar writeLock $ \_ ->
                 mapM_ (\c -> S.write (Just c) os) cs
 
-    h' <- reifyHandler h send
-
-    let loop = S.read is
-            >>= maybe (return ()) (\message -> do
-                    h' message
-                    loop )
-
-    loop
+    withHandler $ \h -> do
+        h' <- reifyHandler (contramapMaybe fromMessage h) send
+        let loop = S.read is
+                >>= maybe (return ()) (\message -> do
+                        h' message
+                        loop )
+        loop
 
 
 -- | @contramapMaybe@ is a version of
