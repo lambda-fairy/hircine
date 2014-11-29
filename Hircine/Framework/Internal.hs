@@ -4,11 +4,15 @@ module Hircine.Framework.Internal (
     SendFn,
     makeHandler,
     makeHandler',
-    reifyHandler
+    reifyHandler,
+    contramapIO,
+    mapOutput,
+    mapOutputIO
     ) where
 
 
 import Control.Applicative
+import Control.Monad
 import Data.Functor.Contravariant
 import Data.Functor.Contravariant.Divisible
 import Data.Monoid
@@ -52,6 +56,19 @@ makeHandler' h = makeHandler $ \send -> return $ \message -> h send message
 
 reifyHandler :: Handler a -> SendFn -> IO (a -> IO ())
 reifyHandler (Handler h) = fmap ((runAction .) . getOp) . h
+
+
+-- | Like 'contramap', but allow performing 'IO' as well.
+contramapIO :: (a -> IO b) -> Handler b -> Handler a
+contramapIO f = makeHandler . (fmap (f >=>) .) . reifyHandler
+
+-- | Apply a function to every outgoing message.
+mapOutput :: ([Command] -> [Command]) -> Handler a -> Handler a
+mapOutput f (Handler h) = Handler $ h . (. f)
+
+-- | Like 'mapOutput', but allow performing 'IO' as well.
+mapOutputIO :: ([Command] -> IO [Command]) -> Handler a -> Handler a
+mapOutputIO f (Handler h) = Handler $ h . (f >=>)
 
 
 newtype Action f = Action { runAction :: f () }
