@@ -15,7 +15,7 @@ import Data.Profunctor
 import Prelude hiding ((.), id)
 
 
--- | A @'Handler' a b@ accepts inputs of type @b@ and sends outputs of
+-- | A @'Handler' a b@ accepts inputs of type @a@ and sends outputs of
 -- type @b@.
 newtype Handler a b = Handler {
     reifyHandler :: Accepts b -> IO (Accepts a)
