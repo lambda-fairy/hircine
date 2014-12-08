@@ -1,78 +1,56 @@
 module Hircine.Framework.Internal (
     Handler(..),
-    Action(..),
-    SendFn,
+    Accepts,
     makeHandler,
     makeHandler',
-    reifyHandler,
-    contramapIO,
-    mapOutput,
-    mapOutputIO
+    liftKleisli
     ) where
 
 
 import Control.Applicative
+import Control.Category (Category((.), id))
 import Control.Monad
-import Data.Functor.Contravariant
-import Data.Functor.Contravariant.Divisible
 import Data.Monoid
+import Data.Profunctor
+import Prelude hiding ((.), id)
 
-import Hircine.Core
 
-
--- | A @'Handler' a@ accepts inputs of type @a@ and performs 'IO' in
--- response.
-newtype Handler a = Handler {
-    unHandler :: SendFn -> IO (Op (Action IO) a)
+-- | A @'Handler' a b@ accepts inputs of type @b@ and sends outputs of
+-- type @b@.
+newtype Handler a b = Handler {
+    reifyHandler :: Accepts b -> IO (Accepts a)
     }
 
--- | Use 'contramap' to transform incoming messages.
-instance Contravariant Handler where
-    contramap f (Handler h) = Handler $ fmap (fmap (contramap f)) h
+instance Category Handler where
+    id = Handler return
+    Handler f . Handler g = Handler $ f >=> g
 
--- | Use 'divide' to run two handlers on the same message.
-instance Divisible Handler where
-    divide f (Handler g) (Handler h) = Handler $ liftA2 (liftA2 (divide f)) g h
-    conquer = Handler $ pure $ pure $ conquer
+instance Profunctor Handler where
+    dimap f g (Handler h) = Handler $ fmap (. f) . h . (. g)
 
--- | Use 'choose' to switch dynamically between two handlers.
-instance Decidable Handler where
-    lose f = Handler $ pure $ pure $ lose f
-    choose f (Handler g) (Handler h) = Handler $ liftA2 (liftA2 (choose f)) g h
+instance Choice Handler where
+    left' (Handler h) = Handler $ \send ->
+        flip either (send . Right) <$> h (send . Left)
+    right' (Handler h) = Handler $ \send ->
+        either (send . Left) <$> h (send . Right)
 
-instance Monoid (Handler a) where
-    mempty = conquer
-    mappend = divide (\a -> (a, a))
+instance Functor (Handler a) where
+    fmap = rmap
 
--- | A callback for sending 'Command's back to the server.
-type SendFn = [Command] -> IO ()
-
-
-makeHandler :: (SendFn -> IO (a -> IO ())) -> Handler a
-makeHandler h = Handler $ fmap (Op . (Action .)) . h
-
-makeHandler' :: (SendFn -> a -> IO ()) -> Handler a
-makeHandler' h = makeHandler $ \send -> return $ \message -> h send message
-
-reifyHandler :: Handler a -> SendFn -> IO (a -> IO ())
-reifyHandler (Handler h) = fmap ((runAction .) . getOp) . h
+instance Monoid (Handler a b) where
+    mempty = Handler $ const $ return $ const $ return ()
+    mappend (Handler f) (Handler g) = Handler $ liftA2 (liftA2 (>>)) f g
 
 
--- | Like 'contramap', but allow performing 'IO' as well.
-contramapIO :: (a -> IO b) -> Handler b -> Handler a
-contramapIO f = makeHandler . (fmap (f >=>) .) . reifyHandler
-
--- | Apply a function to every outgoing message.
-mapOutput :: ([Command] -> [Command]) -> Handler a -> Handler a
-mapOutput f (Handler h) = Handler $ h . (. f)
-
--- | Like 'mapOutput', but allow performing 'IO' as well.
-mapOutputIO :: ([Command] -> IO [Command]) -> Handler a -> Handler a
-mapOutputIO f (Handler h) = Handler $ h . (f >=>)
+-- | A callback that accepts values of type @a@.
+type Accepts a = a -> IO ()
 
 
-newtype Action f = Action { runAction :: f () }
+makeHandler :: (Accepts b -> IO (Accepts a)) -> Handler a b
+makeHandler = Handler
 
-instance Applicative f => Monoid (Action f) where
-    mempty = Action $ pure ()
-    mappend (Action a) (Action b) = Action $ a *> b
+makeHandler' :: (Accepts b -> Accepts a) -> Handler a b
+makeHandler' = makeHandler . (return .)
+
+liftKleisli :: (a -> IO b) -> Handler a b
+liftKleisli = makeHandler' . (>=>)

@@ -5,8 +5,7 @@
 --
 -- * Use 'async' or 'blocking' to create a new event handler.
 --
--- * Use 'Data.Monoid.<>' or 'divide' or 'choose' to mix multiple
---   handlers together.
+-- * Use '<>' or 'fanin' to mix handlers together.
 --
 -- * Use 'runHandler' to execute your bot.
 --
@@ -20,27 +19,27 @@ module Hircine.Framework (
     async,
     blocking,
     asyncify,
-    SendFn,
+    Accepts,
 
     -- * Executing @Handler@s
     runHandler,
 
-    -- * Filtering messages
-    contramapMaybe,
-    perhaps,
-    contramapIO,
-    mapOutput,
-    mapOutputIO
+    -- * Utilities
+    lmapMaybe,
+    fanin,
+    module Data.Profunctor
 
     ) where
 
 
 import Control.Applicative
+import Control.Category (Category(), (>>>))
 import Control.Concurrent
 import Control.Exception (bracket)
 import Control.Monad
 import Control.Monad.Codensity
-import Data.Functor.Contravariant.Divisible
+import Data.Monoid
+import Data.Profunctor
 import System.IO.Streams (InputStream, OutputStream)
 import qualified System.IO.Streams as S
 
@@ -55,7 +54,7 @@ import Hircine.Framework.Internal
 -- async = 'asyncify' <=< 'blocking'
 -- @
 --
-async :: (SendFn -> a -> IO ()) -> Codensity IO (Handler a)
+async :: (Accepts b -> a -> IO ()) -> Codensity IO (Handler a b)
 async = asyncify <=< blocking
 
 
@@ -65,12 +64,12 @@ async = asyncify <=< blocking
 -- exception, then it'll bring down the whole bot with it. If in doubt,
 -- use 'async' instead.
 --
-blocking :: (SendFn -> a -> IO ()) -> Codensity IO (Handler a)
+blocking :: (Accepts b -> a -> IO ()) -> Codensity IO (Handler a b)
 blocking = pure . makeHandler'
 
 
 -- | Run an existing (blocking) 'Handler' in a separate thread.
-asyncify :: Handler a -> Codensity IO (Handler a)
+asyncify :: Handler a b -> Codensity IO (Handler a b)
 asyncify h = Codensity $ bracket start end . middle
   where
 
@@ -93,7 +92,7 @@ asyncify h = Codensity $ bracket start end . middle
 
 -- | Poll the given 'InputStream', calling the 'Handler' on every
 -- message received.
-runHandler :: IsCommand a => Codensity IO (Handler (Msg a))
+runHandler :: IsCommand a => Codensity IO (Handler (Msg a) [Command])
     -> InputStream Message -> OutputStream Command -> IO ()
 runHandler (Codensity withHandler) is os = do
     -- Since io-streams isn't thread-safe, we must guard against
@@ -106,28 +105,17 @@ runHandler (Codensity withHandler) is os = do
                 mapM_ (\c -> S.write (Just c) os) cs
 
     withHandler $ \h -> do
-        h' <- reifyHandler (contramapMaybe fromMessage h) send
+        accept <- reifyHandler (lmapMaybe fromMessage h) send
         let loop = S.read is
                 >>= maybe (return ()) (\message -> do
-                        h' message
+                        accept message
                         loop )
         loop
 
 
--- | @contramapMaybe@ is a version of
--- 'Data.Functor.Contravariant.contramap' which can throw out elements.
--- If the given function returns @Nothing@, the input is dropped.
-contramapMaybe :: Decidable f => (a -> Maybe b) -> f b -> f a
-contramapMaybe f = choose (maybe (Left ()) Right . f) conquer
+lmapMaybe :: (Category p, Choice p, Monoid (p () c))
+    => (a -> Maybe b) -> p b c -> p a c
+lmapMaybe f = lmap (maybe (Left ()) Right . f) . fanin mempty
 
-
--- | @perhaps@ converts a handler of type @a@ to a handler of type
--- @Maybe a@. Any @Just@ values are passed to the underlying handler;
--- @Nothing@ values are ignored.
---
--- @
--- perhaps = 'contramapMaybe' id
--- @
---
-perhaps :: Decidable f => f a -> f (Maybe a)
-perhaps = contramapMaybe id
+fanin :: (Category p, Choice p) => p a c -> p b c -> p (Either a b) c
+fanin p q = rmap (either id id) $ left' p >>> right' q
