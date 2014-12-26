@@ -36,9 +36,9 @@ message = Message <$> optional (origin <* skipSpace1) <*> command
 
 
 origin :: Parser Origin
-origin = ":" *> (user <|> Server <$> takeWhile1 (not . isSpace))
+origin = ":" *> (user <|> FromServer <$> takeWhile1 (not . isSpace))
   where
-    user = User
+    user = FromUser
         <$> takeWhile1 (notInClass " !@")
         <* "!"
         <*> takeWhile1 (notInClass " @")

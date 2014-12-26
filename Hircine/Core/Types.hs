@@ -35,7 +35,7 @@ instance Functor Msg where
 -- host address. Technically only the nickname is required, but in practice
 -- servers always supply all three fields.
 --
-data Origin = Server !Bytes | User !Bytes !Bytes !Bytes
+data Origin = FromServer !Bytes | FromUser !Bytes !Bytes !Bytes
     deriving (Eq, Ord, Read, Show)
 
 
@@ -56,8 +56,8 @@ renderMessage :: Message -> Bytes
 renderMessage (Message origin command)
     = foldMap renderOrigin origin <> renderCommand command
   where
-    renderOrigin (Server host) = ":" <> host <> " "
-    renderOrigin (User nick user host)
+    renderOrigin (FromServer host) = ":" <> host <> " "
+    renderOrigin (FromUser nick user host)
         = mconcat [":", nick, "!", user, "@", host, " "]
 
 renderCommand :: Command -> Bytes
@@ -86,7 +86,7 @@ showCommand = Text.unpack . decode . renderCommand
 testMessage :: Message
 testMessage = Message origin $ Command method params
   where
-    origin = Just $ User "lfairy" "ducks" "geese"
+    origin = Just $ FromUser "lfairy" "ducks" "geese"
     method = Textual "PRIVMSG"
     params = ["#haskell", "Hello, world!"]
 
