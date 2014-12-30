@@ -1,28 +1,25 @@
--- | A framework for writing IRC bots.
+-- | A bot consists of a single 'Module' that listens for 'Message's
+-- from the server and spits out 'Command's in response.
 --
--- A bot consists of a 'Handler' that receives IRC messages and performs
--- 'IO' in response.
+-- * Construct a new module using 'async' or 'blocking'.
 --
--- * Use 'async' or 'blocking' to create a new event handler.
+-- * Compose existing modules together using '<>' or 'fanin'.
 --
--- * Use '<>' or 'fanin' to mix handlers together.
---
--- * Use 'runHandler' to execute your bot.
+-- * Run your bot using 'runModule'.
 --
 
-module Hircine.Framework (
+module Hircine.Module (
 
-    -- * The @Handler@ type
-    Handler(),
+    -- * The @Module@ type
+    Module(),
 
-    -- * Constructing @Handler@s
+    -- * Constructing @Module@s
     async,
     blocking,
     asyncify,
-    Accepts,
 
-    -- * Executing @Handler@s
-    runHandler,
+    -- * Executing @Module@s
+    runModule,
 
     -- * Utilities
     lmapMaybe,
@@ -43,33 +40,33 @@ import System.IO.Streams (InputStream, OutputStream)
 import qualified System.IO.Streams as S
 
 import Hircine.Core
-import Hircine.Framework.Internal
+import Hircine.Module.Internal
 
 
--- | Create a handler that runs in a separate thread.
+-- | Create a module that runs in a separate thread.
 --
 -- @
--- async = 'asyncify' <=< 'blocking'
+-- async = 'asyncify' . 'blocking'
 -- @
 --
-async :: (Accepts b -> a -> IO ()) -> Handler a b
+async :: ((b -> IO ()) -> a -> IO ()) -> Module a b
 async = asyncify . blocking
 
 
--- | Create a handler that runs in the main thread.
+-- | Create a module that runs in the main thread.
 --
--- /Be careful with this function!/ If your handler blocks, or throws an
+-- /Be careful with this function!/ If your module blocks, or throws an
 -- exception, then it'll bring down the whole bot with it. If in doubt,
 -- use 'async' instead.
 --
-blocking :: (Accepts b -> a -> IO ()) -> Handler a b
-blocking = makeHandler'
+blocking :: ((b -> IO ()) -> a -> IO ()) -> Module a b
+blocking = makeModule'
 
 
--- | Run an existing (blocking) 'Handler' in a separate thread.
-asyncify :: Handler a b -> Handler a b
-asyncify h = makeHandler $ \send -> do
-    h' <- reifyHandler h send
+-- | Run an existing (blocking) 'Module' in a separate thread.
+asyncify :: Module a b -> Module a b
+asyncify h = makeModule $ \send -> do
+    h' <- reifyModule h send
     (chan, _) <- Codensity $ bracket (start h') end
     return $ writeChan chan
   where
@@ -81,11 +78,11 @@ asyncify h = makeHandler $ \send -> do
     end (_, thread) = killThread thread
 
 
--- | Poll the given 'InputStream', calling the 'Handler' on every
+-- | Poll the given 'InputStream', calling the 'Module' on every
 -- message received.
-runHandler :: Handler Message [Command]
+runModule :: Module Message [Command]
     -> InputStream Message -> OutputStream Command -> IO ()
-runHandler h is os = do
+runModule h is os = do
     -- Since io-streams isn't thread-safe, we must guard against
     -- concurrent writes
     writeLock <- newMVar ()
@@ -95,7 +92,7 @@ runHandler h is os = do
             withMVar writeLock $ \_ ->
                 mapM_ (\c -> S.write (Just c) os) cs
 
-    runCodensity (reifyHandler h send) $ \h' ->
+    runCodensity (reifyModule h send) $ \h' ->
         let loop = S.read is
                 >>= maybe (return ()) (\message -> do
                         h' message

@@ -19,8 +19,8 @@ library
         Hircine
         Hircine.Core
         Hircine.Command
-        Hircine.Framework
-        Hircine.Framework.Internal
+        Hircine.Module
+        Hircine.Module.Internal
         Hircine.Stream
     other-modules:
         Hircine.Core.Types
