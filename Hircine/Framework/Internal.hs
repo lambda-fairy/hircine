@@ -10,6 +10,7 @@ module Hircine.Framework.Internal (
 import Control.Applicative
 import Control.Category (Category((.), id))
 import Control.Monad
+import Control.Monad.Codensity
 import Data.Monoid
 import Data.Profunctor
 import Prelude hiding ((.), id)
@@ -18,7 +19,7 @@ import Prelude hiding ((.), id)
 -- | A @'Handler' a b@ accepts inputs of type @a@ and sends outputs of
 -- type @b@.
 newtype Handler a b = Handler {
-    reifyHandler :: Accepts b -> IO (Accepts a)
+    reifyHandler :: Accepts b -> Codensity IO (Accepts a)
     }
 
 instance Category Handler where
@@ -46,7 +47,7 @@ instance Monoid (Handler a b) where
 type Accepts a = a -> IO ()
 
 
-makeHandler :: (Accepts b -> IO (Accepts a)) -> Handler a b
+makeHandler :: (Accepts b -> Codensity IO (Accepts a)) -> Handler a b
 makeHandler = Handler
 
 makeHandler' :: (Accepts b -> Accepts a) -> Handler a b

@@ -32,7 +32,6 @@ module Hircine.Framework (
     ) where
 
 
-import Control.Applicative
 import Control.Category (Category(), (>>>))
 import Control.Concurrent
 import Control.Exception (bracket)
@@ -44,7 +43,6 @@ import System.IO.Streams (InputStream, OutputStream)
 import qualified System.IO.Streams as S
 
 import Hircine.Core
-import Hircine.Command
 import Hircine.Framework.Internal
 
 
@@ -54,8 +52,8 @@ import Hircine.Framework.Internal
 -- async = 'asyncify' <=< 'blocking'
 -- @
 --
-async :: (Accepts b -> a -> IO ()) -> Codensity IO (Handler a b)
-async = asyncify <=< blocking
+async :: (Accepts b -> a -> IO ()) -> Handler a b
+async = asyncify . blocking
 
 
 -- | Create a handler that runs in the main thread.
@@ -64,37 +62,30 @@ async = asyncify <=< blocking
 -- exception, then it'll bring down the whole bot with it. If in doubt,
 -- use 'async' instead.
 --
-blocking :: (Accepts b -> a -> IO ()) -> Codensity IO (Handler a b)
-blocking = pure . makeHandler'
+blocking :: (Accepts b -> a -> IO ()) -> Handler a b
+blocking = makeHandler'
 
 
 -- | Run an existing (blocking) 'Handler' in a separate thread.
-asyncify :: Handler a b -> Codensity IO (Handler a b)
-asyncify h = Codensity $ bracket start end . middle
+asyncify :: Handler a b -> Handler a b
+asyncify h = makeHandler $ \send -> do
+    h' <- reifyHandler h send
+    (chan, _) <- Codensity $ bracket (start h') end
+    return $ writeChan chan
   where
-
-    start = do
+    start h' = do
         -- FIXME: use a bounded channel instead
         chan <- newChan
-        sendRef <- newEmptyMVar
-        thread <- forkIO $ do
-            send <- takeMVar sendRef
-            h' <- reifyHandler h send
-            forever $ readChan chan >>= h'
-        return (chan, sendRef, thread)
-
-    end (_, _, thread) = killThread thread
-
-    middle k (chan, sendRef, _) = k $ makeHandler $ \send -> do
-        putMVar sendRef send
-        return $ writeChan chan
+        thread <- forkIO . forever $ readChan chan >>= h'
+        return (chan, thread)
+    end (_, thread) = killThread thread
 
 
 -- | Poll the given 'InputStream', calling the 'Handler' on every
 -- message received.
-runHandler :: IsCommand a => Codensity IO (Handler (Msg a) [Command])
+runHandler :: Handler Message [Command]
     -> InputStream Message -> OutputStream Command -> IO ()
-runHandler (Codensity withHandler) is os = do
+runHandler h is os = do
     -- Since io-streams isn't thread-safe, we must guard against
     -- concurrent writes
     writeLock <- newMVar ()
@@ -104,13 +95,12 @@ runHandler (Codensity withHandler) is os = do
             withMVar writeLock $ \_ ->
                 mapM_ (\c -> S.write (Just c) os) cs
 
-    withHandler $ \h -> do
-        accept <- reifyHandler (lmapMaybe fromMessage h) send
+    runCodensity (reifyHandler h send) $ \h' ->
         let loop = S.read is
                 >>= maybe (return ()) (\message -> do
-                        accept message
+                        h' message
                         loop )
-        loop
+        in  loop
 
 
 lmapMaybe :: (Category p, Choice p, Monoid (p () c))
