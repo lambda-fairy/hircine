@@ -1,16 +1,17 @@
--- | A bot consists of a single 'Module' that listens for 'Message's
+-- | A bot consists of a single 'IrcModule' that listens for 'Message's
 -- from the server and spits out 'Command's in response.
 --
 -- * Construct a new module using 'async' or 'blocking'.
 --
 -- * Compose existing modules together using '<>' or 'fanin'.
 --
--- * Run your bot using 'runModule'.
+-- * Run your bot using 'runIrcModule'.
 --
 
 module Hircine.Module (
 
     -- * The @Module@ type
+    IrcModule,
     Module(),
 
     -- * Constructing @Module@s
@@ -19,11 +20,11 @@ module Hircine.Module (
     asyncify,
 
     -- * Executing @Module@s
-    runModule,
+    runIrcModule,
 
     -- * Utilities
-    lmapMaybe,
-    fanin,
+    choose,
+    perhaps,
     module Data.Profunctor
 
     ) where
@@ -41,6 +42,11 @@ import qualified System.IO.Streams as S
 
 import Hircine.Core
 import Hircine.Module.Internal
+
+
+-- | An @IrcModule@ listens for IRC 'Message's and outputs 'Command's in
+-- response.
+type IrcModule = Module Message [Command]
 
 
 -- | Create a module that runs in a separate thread.
@@ -78,11 +84,11 @@ asyncify h = makeModule $ \send -> do
     end (_, thread) = killThread thread
 
 
--- | Poll the given 'InputStream', calling the 'Module' on every
+-- | Poll the given 'InputStream', calling the 'IrcModule' on every
 -- message received.
-runModule :: Module Message [Command]
+runIrcModule :: IrcModule
     -> InputStream Message -> OutputStream Command -> IO ()
-runModule h is os = do
+runIrcModule h is os = do
     -- Since io-streams isn't thread-safe, we must guard against
     -- concurrent writes
     writeLock <- newMVar ()
@@ -100,9 +106,14 @@ runModule h is os = do
         in  loop
 
 
-lmapMaybe :: (Category p, Choice p, Monoid (p () c))
-    => (a -> Maybe b) -> p b c -> p a c
-lmapMaybe f = lmap (maybe (Left ()) Right . f) . fanin mempty
+-- | Choose which module to run, given the input.
+choose :: (Category p, Choice p)
+    => (a -> Either b c) -> p b d -> p c d -> p a d
+choose f p q = dimap f (either id id) $ left' p >>> right' q
 
-fanin :: (Category p, Choice p) => p a c -> p b c -> p (Either a b) c
-fanin p q = rmap (either id id) $ left' p >>> right' q
+-- | Transform the input, dropping it if the function returns Nothing.
+perhaps :: (Category p, Choice p, Monoid (p () c))
+    => (a -> Maybe b) -> p b c -> p a c
+perhaps f = choose (maybeToEither . f) mempty
+  where
+    maybeToEither = maybe (Left ()) Right
