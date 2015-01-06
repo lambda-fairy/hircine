@@ -24,8 +24,7 @@ module Hircine.Module (
 
     -- * Utilities
     choose,
-    perhaps,
-    module Data.Profunctor
+    perhaps
 
     ) where
 
