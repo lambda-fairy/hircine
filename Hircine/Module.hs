@@ -30,7 +30,7 @@ module Hircine.Module (
     ) where
 
 
-import Control.Category (Category(), (>>>))
+import Control.Category ((>>>))
 import Control.Concurrent
 import Control.Exception (bracket)
 import Control.Monad
@@ -107,13 +107,11 @@ runIrcModule h is os = do
 
 
 -- | Choose which module to run, given the input.
-choose :: (Category p, Choice p)
-    => (a -> Either b c) -> p b d -> p c d -> p a d
+choose :: (a -> Either b c) -> Module b d -> Module c d -> Module a d
 choose f p q = dimap f (either id id) $ left' p >>> right' q
 
 -- | Transform the input, dropping it if the function returns Nothing.
-perhaps :: (Category p, Choice p, Monoid (p () c))
-    => (a -> Maybe b) -> p b c -> p a c
+perhaps :: (a -> Maybe b) -> Module b c -> Module a c
 perhaps f = choose (maybeToEither . f) mempty
   where
     maybeToEither = maybe (Left ()) Right
