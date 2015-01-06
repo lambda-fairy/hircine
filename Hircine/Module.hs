@@ -3,7 +3,7 @@
 --
 -- * Construct a new module using 'async' or 'blocking'.
 --
--- * Compose existing modules together using '<>' or 'fanin'.
+-- * Compose existing modules together using '<>' or 'choose'.
 --
 -- * Run your bot using 'runIrcModule'.
 --
