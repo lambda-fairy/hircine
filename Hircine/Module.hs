@@ -17,7 +17,7 @@ module Hircine.Module (
     -- * Constructing @Module@s
     async,
     blocking,
-    asyncify,
+    pipe,
 
     -- * Executing @Module@s
     runIrcModule,
@@ -52,11 +52,11 @@ type IrcModule = Module Message [Command]
 -- | Create a module that runs in a separate thread.
 --
 -- @
--- async = 'asyncify' . 'blocking'
+-- async = ('pipe' '>>>') . 'blocking'
 -- @
 --
 async :: ((b -> IO ()) -> a -> IO ()) -> Module a b
-async = asyncify . blocking
+async = (pipe >>>) . blocking
 
 
 -- | Create a module that runs in the main thread.
@@ -69,17 +69,17 @@ blocking :: ((b -> IO ()) -> a -> IO ()) -> Module a b
 blocking = makeModule'
 
 
--- | Run an existing (blocking) 'Module' in a separate thread.
-asyncify :: Module a b -> Module a b
-asyncify h = makeModule $ \send -> do
-    h' <- reifyModule h send
-    (chan, _) <- Codensity $ bracket (start h') end
+-- | Buffer up incoming messages, so that a long-running operation
+-- downstream does not block upstream code.
+pipe :: Module a a
+pipe = makeModule $ \send -> do
+    (chan, _) <- Codensity $ bracket (start send) end
     return $ writeChan chan
   where
-    start h' = do
+    start send = do
         -- FIXME: use a bounded channel instead
         chan <- newChan
-        thread <- forkIO . forever $ readChan chan >>= h'
+        thread <- forkIO . forever $ readChan chan >>= send
         return (chan, thread)
     end (_, thread) = killThread thread
 
