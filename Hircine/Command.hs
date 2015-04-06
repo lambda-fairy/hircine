@@ -4,6 +4,7 @@ module Hircine.Command where
 
 
 import Control.Applicative
+import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
 import Data.Maybe
 
@@ -83,3 +84,6 @@ instance IsCommand PrivMsg where
 
     toCommand (PrivMsg targets message)
         = Command "PRIVMSG" [B.intercalate "," targets, message]
+
+
+type Bytes = ByteString

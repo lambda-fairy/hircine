@@ -17,7 +17,6 @@ module Hircine.Core (
     -- * Utilities
     decode,
     encode,
-    Bytes,
 
     -- * For testing
     testMessage
