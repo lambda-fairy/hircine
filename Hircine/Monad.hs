@@ -21,11 +21,9 @@ import Control.Concurrent
 import Control.Exception (bracket)
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
+import Data.Foldable (for_)
 import Data.Function (fix)
-import Data.Foldable (traverse_)
 import Data.IORef
-import System.IO.Streams (InputStream, OutputStream)
-import qualified System.IO.Streams as S
 
 import Hircine.Core
 import Hircine.Command
@@ -66,21 +64,18 @@ buffer h = ReaderT $ \s -> do
     return r
 
 
-runHircine :: Hircine () -> InputStream Message -> OutputStream Command -> IO ()
-runHircine h is os = do
-    -- Since io-streams isn't thread-safe, we must guard against
-    -- concurrent writes
-    writeLock <- newMVar ()
+runHircine :: Hircine () -> IO (Maybe Message) -> ([Command] -> IO ()) -> IO ()
+runHircine h receive' send' = do
+    sendLock <- newMVar ()
     incoming <- newEmptyMVar
     bracket
         (forkIO $ runReaderT h HircineState {
             hsReceive = takeMVar incoming,
-            hsSend = \cs ->
-                -- TODO: some sort of buffering here would be nice
-                withMVar writeLock $ \_ ->
-                    mapM_ (\c -> S.write (Just c) os) cs
+            hsSend = \cs -> withMVar sendLock $ \_ -> send' cs
             })
         killThread
         (\_ -> fix $ \loop -> do
-            m <- S.read is
-            traverse_ (\m' -> putMVar incoming m' >> loop) m)
+            m <- receive'
+            for_ m $ \m' -> do
+                putMVar incoming m'
+                loop )

@@ -28,7 +28,6 @@ library
         base == 4.*,
         attoparsec == 0.12.*,
         bytestring,
-        io-streams,
         network,
         network-simple,
         text,
