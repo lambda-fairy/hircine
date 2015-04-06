@@ -27,10 +27,10 @@ import Hircine.Core
 --
 socketToIRCStreams :: Socket -> IO (IO (Maybe Message), [Command] -> IO ())
 socketToIRCStreams sock
-    = makeIRCStreams (S.recv sock 8192) (S.sendAll sock)
+    = makeIRCStreams (S.recv sock 8192) (S.sendMany sock)
 
 
--- | Build IRC streams from a @recv@ and @send@ pair.
+-- | Build IRC streams from a @recv@ and @sendMany@ pair.
 --
 -- The @recv@ action should return the empty string when the stream is
 -- closed.
@@ -39,11 +39,11 @@ socketToIRCStreams sock
 --
 makeIRCStreams
     :: IO ByteString  -- ^ @recv@
-    -> (ByteString -> IO ())  -- ^ @send@
+    -> ([ByteString] -> IO ())  -- ^ @sendMany@
     -> IO (IO (Maybe Message), [Command] -> IO ())
-makeIRCStreams recv send = do
+makeIRCStreams recv sendMany = do
     recv' <- parseMessages recv
-    let send' = renderCommands send
+    let send' = renderCommands sendMany
     return (recv', send')
 
 
@@ -59,8 +59,9 @@ parseMessages recv = do
             Right m -> return m
 
 
-renderCommands :: (ByteString -> IO ()) -> [Command] -> IO ()
-renderCommands send = send . foldMap ((<> "\r\n") . renderCommand)
+renderCommands :: ([ByteString] -> IO ()) -> [Command] -> IO ()
+renderCommands sendMany
+    = sendMany . concatMap (\c -> [renderCommand c, "\r\n"])
 
 
 -- | Convert an action that reads blocks to an action that reads lines.
