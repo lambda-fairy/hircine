@@ -11,9 +11,7 @@ module Hircine.Stream (
 import Control.Applicative
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
-import Data.Foldable (foldMap)
 import Data.IORef
-import Data.Monoid
 import Data.Traversable (for)
 import Network (Socket)
 import qualified Network.Socket.ByteString as S
