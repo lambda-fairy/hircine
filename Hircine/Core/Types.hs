@@ -18,8 +18,8 @@ import Data.Word
 type Message = Msg Command
 
 
--- | An IRC message consists of an optional prefix, along with a
--- message body.
+-- | An IRC message consists of an optional prefix, along with a message
+-- body.
 data Msg body = Message {
     msgOrigin :: !(Maybe Origin),
     msgCommand :: !body
@@ -32,13 +32,18 @@ instance Functor Msg where
 -- | A message can originate from a fellow user, or the server itself.
 --
 -- If the former, the prefix must specify the nickname, username and
--- host address. Technically only the nickname is required, but in practice
--- servers always supply all three fields.
+-- host address. Technically only the nickname is required, but in
+-- practice servers always supply all three fields.
 --
 data Origin = FromServer !Bytes | FromUser !Bytes !Bytes !Bytes
     deriving (Eq, Ord, Read, Show)
 
 
+-- | An IRC command, along with its parameters.
+--
+-- Invariant: Only the final parameter may contain whitespace, or start
+-- with a colon (@:@).
+--
 data Command = Command {
     cmdMethod :: !Method,
     cmdParams :: ![Bytes]
@@ -71,9 +76,16 @@ renderCommand (Command method params)
         [] -> ""
         [p] | shouldEscape p -> " :" <> p
             | otherwise -> " " <> p
-        (p:ps') -> " " <> p <> renderParams ps'
+        (p:ps')
+            | isInvalidNonFinalParam p -> error $
+                "renderCommand: invalid parameter: " ++ show p
+            | otherwise -> " " <> p <> renderParams ps'
 
-    shouldEscape p = B.null p || B.any (\c -> c == ':' || isSpace c) p
+    isInvalidNonFinalParam p
+        = B.null p || B.head p == ':' || B.any isSpace p
+
+    shouldEscape p
+        = B.null p || B.any (\c -> c == ':' || isSpace c) p
 
 
 showMessage :: Message -> String
