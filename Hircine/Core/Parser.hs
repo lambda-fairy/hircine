@@ -11,6 +11,7 @@ import Prelude hiding (takeWhile)
 import Control.Applicative
 import Control.Monad
 import Data.Attoparsec.ByteString.Char8
+import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
 import Data.Char (toUpper)
 import Data.String
@@ -21,7 +22,7 @@ import Hircine.Core.Types
 
 -- | Parse a message. The input string should represent exactly one
 -- message, with no trailing newlines.
-parseMessage :: Bytes -> Either String Message
+parseMessage :: ByteString -> Either String Message
 parseMessage = parseOnly $ message <* skipSpace <* endOfInput
 
 
@@ -55,7 +56,7 @@ method = Textual . B.map toUpper <$> takeWhile1 isAlpha_ascii
     <|> Numeric <$> digit' <*> digit' <*> digit'
 
 
-params :: Parser [Bytes]
+params :: Parser [ByteString]
 params = many (skipSpace1 *> param)
   where
     param = do

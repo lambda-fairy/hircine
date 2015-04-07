@@ -35,7 +35,7 @@ instance Functor Msg where
 -- host address. Technically only the nickname is required, but in
 -- practice servers always supply all three fields.
 --
-data Origin = FromServer !Bytes | FromUser !Bytes !Bytes !Bytes
+data Origin = FromServer !ByteString | FromUser !ByteString !ByteString !ByteString
     deriving (Eq, Ord, Read, Show)
 
 
@@ -46,18 +46,18 @@ data Origin = FromServer !Bytes | FromUser !Bytes !Bytes !Bytes
 --
 data Command = Command {
     cmdMethod :: !Method,
-    cmdParams :: ![Bytes]
+    cmdParams :: ![ByteString]
     } deriving (Eq, Read, Show)
 
 
 -- | A command is specified by either a sequence of uppercase ASCII
 -- letters, or a three digit code.
-data Method = Textual !Bytes | Numeric !Word8 !Word8 !Word8
+data Method = Textual !ByteString | Numeric !Word8 !Word8 !Word8
     deriving (Eq, Ord, Read, Show)
 
 
 -- | Render a message into a string.
-renderMessage :: Message -> Bytes
+renderMessage :: Message -> ByteString
 renderMessage (Message origin command)
     = foldMap renderOrigin origin <> renderCommand command
   where
@@ -65,7 +65,7 @@ renderMessage (Message origin command)
     renderOrigin (FromUser nick user host)
         = mconcat [":", nick, "!", user, "@", host, " "]
 
-renderCommand :: Command -> Bytes
+renderCommand :: Command -> ByteString
 renderCommand (Command method params)
     = renderMethod method <> renderParams params
   where
@@ -104,15 +104,11 @@ testMessage = Message origin $ Command method params
 
 
 -- | Try to decode using UTF-8, then Latin-1.
-decode :: Bytes -> Text
+decode :: ByteString -> Text
 decode s = case Text.decodeUtf8' s of
     Right s' -> s'
     Left _ -> Text.decodeLatin1 s
 
 -- | Alias for 'Text.encodeUtf8'.
-encode :: Text -> Bytes
+encode :: Text -> ByteString
 encode = Text.encodeUtf8
-
-
--- | Convenient synonym for 'ByteString'.
-type Bytes = ByteString
