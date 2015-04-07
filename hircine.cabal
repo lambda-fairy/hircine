@@ -25,7 +25,7 @@ library
         Hircine.Core.Types
         Hircine.Core.Parser
     build-depends:
-        base == 4.*,
+        base >= 4.6 && < 5,
         attoparsec == 0.12.*,
         bytestring,
         network,
