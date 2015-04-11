@@ -85,7 +85,7 @@ splitLines next = process <$> newIORef (Just B.empty)
                     line = B.concat . reverse $ front : ss
                     back' = B.dropWhile isCRLF back
                 in  if B.null line
-                        then next >>= loop [back']  -- Discard empty chunks
+                        then next >>= loop [back']  -- Discard empty lines
                         else return $ Just (line, back')
 
 isCRLF :: Char -> Bool
