@@ -11,6 +11,7 @@ import Data.Monoid
 import qualified Data.Text.Encoding as Text
 import Data.Text (Text)
 import qualified Data.Text as Text
+import qualified Data.Traversable as T
 import Data.Word
 
 
@@ -27,6 +28,12 @@ data Msg body = Message {
 
 instance Functor Msg where
     fmap f (Message origin command) = Message origin (f command)
+
+instance F.Foldable Msg where
+    foldMap f (Message _ command) = f command
+
+instance T.Traversable Msg where
+    traverse f (Message origin command) = Message origin <$> f command
 
 
 -- | A message can originate from a fellow user, or the server itself.
