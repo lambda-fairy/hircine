@@ -6,7 +6,7 @@ module Hircine.Core.Types where
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
 import Data.Char
-import Data.Foldable (foldMap)
+import qualified Data.Foldable as F
 import Data.Monoid
 import qualified Data.Text.Encoding as Text
 import Data.Text (Text)
@@ -59,7 +59,7 @@ data Method = Textual !ByteString | Numeric !Word8 !Word8 !Word8
 -- | Render a message into a string.
 renderMessage :: Message -> ByteString
 renderMessage (Message origin command)
-    = foldMap renderOrigin origin <> renderCommand command
+    = F.foldMap renderOrigin origin <> renderCommand command
   where
     renderOrigin (FromServer host) = ":" <> host <> " "
     renderOrigin (FromUser nick user host)

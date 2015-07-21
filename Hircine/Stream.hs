@@ -15,6 +15,7 @@ import Data.IORef
 import Data.Traversable (for)
 import Network (Socket)
 import qualified Network.Socket.ByteString as S
+import Prelude  -- GHC 7.10
 
 import Hircine.Core
 

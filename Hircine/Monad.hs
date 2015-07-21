@@ -21,7 +21,7 @@ import Control.Concurrent
 import Control.Exception (bracket)
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
-import Data.Foldable (for_)
+import qualified Data.Foldable as F
 import Data.Function (fix)
 import Data.IORef
 
@@ -76,6 +76,6 @@ runHircine h receive' send' = do
         killThread
         (\_ -> fix $ \loop -> do
             m <- receive'
-            for_ m $ \m' -> do
+            F.for_ m $ \m' -> do
                 putMVar incoming m'
                 loop )
