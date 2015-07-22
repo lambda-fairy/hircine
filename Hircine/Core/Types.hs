@@ -3,6 +3,7 @@
 module Hircine.Core.Types where
 
 
+import Control.Applicative
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
 import Data.Char
@@ -13,6 +14,7 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Traversable as T
 import Data.Word
+import Prelude  -- GHC 7.10
 
 
 -- | A raw message.
