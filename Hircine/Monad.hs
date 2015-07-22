@@ -23,6 +23,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
 import qualified Data.Foldable as F
 import Data.Function (fix)
+import qualified Data.Traversable as T
 import Data.IORef
 
 import Hircine.Core
@@ -38,8 +39,14 @@ data HircineState = HircineState {
 
 
 -- | Receive a single IRC message from the server.
-receive :: Hircine Message
-receive = ReaderT hsReceive
+receive :: IsCommand c => Hircine (Msg c)
+receive = ReaderT loop
+  where
+    loop s = do
+        m <- hsReceive s
+        case T.traverse fromCommand m of
+            Nothing -> loop s
+            Just m' -> return m'
 
 -- | Send an IRC command to the server.
 send :: IsCommand c => c -> Hircine ()
