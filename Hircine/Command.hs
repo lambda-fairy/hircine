@@ -6,7 +6,9 @@ module Hircine.Command where
 import Control.Applicative
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
+import qualified Data.Foldable as F
 import Data.Maybe
+import Prelude  -- GHC 7.10
 
 import Hircine.Core
 
@@ -23,14 +25,17 @@ toMessage :: IsCommand a => Msg a -> Message
 toMessage = fmap toCommand
 
 
+(?) :: (Monad m, IsCommand a) => m Command -> (a -> m ()) -> m Command
+m ? k = do
+    c <- m
+    F.mapM_ k $ fromCommand c
+    return c
+infixl 2 ?
+
+
 instance IsCommand Command where
     fromCommand = Just
     toCommand = id
-
-
-instance (IsCommand a, IsCommand b) => IsCommand (Either a b) where
-    fromCommand c = Left <$> fromCommand c <|> Right <$> fromCommand c
-    toCommand = either toCommand toCommand
 
 
 type Bytes = ByteString
