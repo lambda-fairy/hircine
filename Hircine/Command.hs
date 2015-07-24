@@ -3,12 +3,11 @@
 module Hircine.Command where
 
 
-import Control.Applicative
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Foldable as F
+import qualified Data.Traversable as T
 import Data.Maybe
-import Prelude  -- GHC 7.10
 
 import Hircine.Core
 
@@ -19,7 +18,7 @@ class IsCommand a where
 
 
 fromMessage :: IsCommand a => Message -> Maybe (Msg a)
-fromMessage (Message origin command) = Message origin <$> fromCommand command
+fromMessage = T.traverse fromCommand
 
 toMessage :: IsCommand a => Msg a -> Message
 toMessage = fmap toCommand
