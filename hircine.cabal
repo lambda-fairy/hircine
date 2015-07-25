@@ -1,18 +1,18 @@
-name:                hircine
-version:             0
-synopsis:            A modern, extensible IRC bot
+name: hircine
+version: 0
+synopsis: A modern, extensible IRC bot
 description:
     Hircine is an IRC bot written and extensible in Haskell.
-homepage:            http://lambda.xyz/hircine
-license:             BSD3
-license-file:        LICENSE
-author:              Chris Wong
-maintainer:          lambda.fairy@gmail.com
-copyright:           2015 Chris Wong
-category:            Network
-build-type:          Simple
-extra-source-files:  README.md
-cabal-version:       >= 1.10
+homepage: http://lambda.xyz/hircine
+license: BSD3
+license-file: LICENSE
+author: Chris Wong
+maintainer: lambda.fairy@gmail.com
+copyright: 2015 Chris Wong
+category: Network
+build-type: Simple
+extra-source-files: README.md
+cabal-version: >= 1.10
 
 library
     exposed-modules:
@@ -31,9 +31,9 @@ library
         network,
         text,
         transformers
-    default-language:    Haskell2010
-    ghc-options:         -Wall
+    default-language: Haskell2010
+    ghc-options: -Wall
 
 source-repository head
-    type:                git
-    location:            https://github.com/lfairy/hircine.git
+    type: git
+    location: https://github.com/lfairy/hircine.git
