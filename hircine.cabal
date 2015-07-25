@@ -34,6 +34,7 @@ library
         attoparsec,
         bytestring,
         network,
+        slave-thread,
         text,
         transformers
     default-language: Haskell2010

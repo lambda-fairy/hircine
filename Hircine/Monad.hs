@@ -10,6 +10,7 @@ module Hircine.Monad (
     receive,
     send,
     buffer,
+    fork,
 
     -- * Running the bot
     runHircine
@@ -24,6 +25,7 @@ import Control.Monad.Trans.Reader
 import qualified Data.Foldable as F
 import Data.Function (fix)
 import Data.IORef
+import qualified SlaveThread
 
 import Hircine.Core
 import Hircine.Command
@@ -62,6 +64,13 @@ buffer h = ReaderT $ \s -> do
     -- This minimizes the time spent in hsSend's critical section
     cs `seq` hsSend s cs
     return r
+
+
+-- | Run the inner action in a separate thread.
+--
+-- See the "SlaveThread" documentation for tips and caveats.
+fork :: Hircine () -> Hircine ThreadId
+fork h = ReaderT $ SlaveThread.fork . runReaderT h
 
 
 runHircine :: Hircine () -> IO (Maybe Message) -> ([Command] -> IO ()) -> IO ()
