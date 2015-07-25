@@ -51,10 +51,14 @@ executable brigitte
     else
         build-depends:
             base,
+            aeson,
             bytestring,
             hircine,
+            lens,
+            lens-aeson,
             network-simple,
             wreq,
+            text,
             transformers,
             unix
 
