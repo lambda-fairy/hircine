@@ -14,6 +14,11 @@ build-type: Simple
 extra-source-files: README.md
 cabal-version: >= 1.10
 
+flag brigitte
+    description: build example bot ("brigitte")
+    default: False
+    manual: True
+
 library
     exposed-modules:
         Hircine
@@ -33,6 +38,24 @@ library
         transformers
     default-language: Haskell2010
     ghc-options: -Wall
+
+executable brigitte
+    hs-source-dirs: brigitte
+    main-is: Main.hs
+    default-language: Haskell2010
+    ghc-options: -Wall -threaded -rtsopts
+
+    if !flag(brigitte)
+        buildable: False
+    else
+        build-depends:
+            base,
+            bytestring,
+            hircine,
+            network-simple,
+            wreq,
+            transformers,
+            unix
 
 source-repository head
     type: git
