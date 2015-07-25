@@ -82,7 +82,7 @@ runHircine h receive' send' = do
             hsReceive = takeMVar incoming,
             hsSend = \cs -> withMVar sendLock $ \_ -> send' cs
             })
-        killThread
+        (\t -> takeMVar sendLock >> killThread t)
         (\_ -> fix $ \loop -> do
             m <- receive'
             F.for_ m $ \m' -> do
