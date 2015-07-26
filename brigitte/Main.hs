@@ -92,7 +92,7 @@ instance FromJSON Package where
 showPackage :: Package -> Text
 showPackage p = Text.intercalate " – " [
     packageName p <> " " <> packageMaxVersion p,
-    summarize 80 (packageDescription p),
+    summarize 80 $ packageDescription p,
     "https://crates.io/crates/" <> packageName p
     ]
 
