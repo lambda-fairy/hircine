@@ -9,3 +9,4 @@ cabal-dev
 .virthualenv
 
 /b
+state/
