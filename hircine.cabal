@@ -45,18 +45,24 @@ executable brigitte
     main-is: Main.hs
     default-language: Haskell2010
     ghc-options: -Wall -threaded -rtsopts
+    other-modules:
+        Types
 
     if !flag(brigitte)
         buildable: False
     else
         build-depends:
             base,
+            acid-state,
             aeson,
             bytestring,
+            containers,
             hircine,
             lens,
             lens-aeson,
+            mtl,
             network-simple,
+            safecopy,
             wreq,
             text,
             transformers,

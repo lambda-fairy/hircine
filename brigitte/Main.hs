@@ -1,22 +1,21 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 
-import Control.Applicative
 import Control.Concurrent
 import Control.Exception
 import Control.Lens
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
+import Data.Acid
+import Data.Acid.Local
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString (ByteString)
 import Data.Foldable
-import Data.List
 import Data.Maybe
 import Data.Monoid
-import Data.Text (Text)
-import qualified Data.Text as Text
+import Data.Typeable
 import qualified Data.Text.Encoding as Text
 import Network.Simple.TCP (connect)
 import Network.Wreq
@@ -26,24 +25,28 @@ import System.IO
 
 import Hircine
 
+import Types
+
 
 channel :: ByteString
 channel = "#brigitte"
 
 
 main :: IO ()
-main = S.withSession $ \sess -> do
+main = do
     hSetBuffering stdout LineBuffering
     secret <- getEnv' "BRIGITTE_SECRET"
-    connect "irc.mozilla.org" "6667" $ \(sock, addr) -> do
-        putStrLn $ "Connected to " ++ show addr
-        (is, os) <- socketToIRCStreams sock
-        runHircine (logMessages $ bot secret sess) is os
-            `finally` putStrLn "Closing"
+    S.withSession $ \sess ->
+        withAcidState defaultBrigitteState $ \acid ->
+            connect "irc.mozilla.org" "6667" $ \(sock, addr) -> do
+                putStrLn $ "Connected to " ++ show addr
+                (is, os) <- socketToIRCStreams sock
+                runHircine (logMessages $ bot secret acid sess) is os
+                    `finally` putStrLn "Closing"
 
 
-bot :: ByteString -> S.Session -> Hircine ()
-bot secret sess = do
+bot :: ByteString -> AcidState BrigitteState -> S.Session -> Hircine ()
+bot secret acid sess = do
     send $ Pass secret
     send $ Nick "brigitte"
     send $ User "brigitte" "SCP-191 is a good IRC bot"
@@ -61,51 +64,21 @@ bot secret sess = do
             ? (\(Command code _) ->
                 when (code == "900") $ do
                     send $ Join [channel] []
-                    _ <- fork $ checkNewCrates sess
+                    _ <- fork $ checkNewCrates acid sess
                     return () )
 
 
-checkNewCrates :: S.Session -> Hircine ()
-checkNewCrates sess = forever $ do
-    r <- liftIO $ S.get sess "https://crates.io/summary"
-    let packages = mapMaybe fromJSON' $
-            (r ^.. responseBody . key "just_updated" . values)
-            ++ (r ^.. responseBody . key "new_crates" . values)
-    buffer . for_ packages $
+checkNewCrates :: AcidState BrigitteState -> S.Session -> Hircine ()
+checkNewCrates acid sess = forever $ do
+    changedPackages <- liftIO $ do
+        r <- S.get sess "https://crates.io/summary"
+        let updatedPackages = mapMaybe fromJSON' $
+                (r ^.. responseBody . key "just_updated" . values)
+                ++ (r ^.. responseBody . key "new_crates" . values)
+        update acid $ UpdatePackages updatedPackages
+    buffer . for_ changedPackages $
         send . PrivMsg [channel] . Text.encodeUtf8 . showPackage
-    liftIO . threadDelay $ 10 * 1000 * 1000  -- 10 seconds
-
-
-data Package = Package {
-    packageName :: Text,
-    packageMaxVersion :: Text,
-    packageDescription :: Text
-    } deriving (Eq, Show)
-
-instance FromJSON Package where
-    parseJSON (Object v) = Package
-        <$> v .: "name"
-        <*> v .: "max_version"
-        <*> v .: "description"
-    parseJSON _ = empty
-
-showPackage :: Package -> Text
-showPackage p = Text.intercalate " – " [
-    packageName p <> " " <> packageMaxVersion p,
-    summarize 80 $ packageDescription p,
-    "https://crates.io/crates/" <> packageName p
-    ]
-
-
-summarize :: Int -> Text -> Text
-summarize limit = Text.unwords . unfoldr f . (,) 0 . Text.words
-  where
-    f (_, []) = Nothing
-    f (n, (w : ws))
-        | n' > limit = Just ("…", (n', []))
-        | otherwise = Just (w, (n', ws))
-      where
-        n' = n + Text.length w
+    liftIO . threadDelay $ 60 * 1000 * 1000  -- 60 seconds
 
 
 logMessages :: Hircine () -> Hircine ()
@@ -129,3 +102,9 @@ fromJSON' :: FromJSON a => Value -> Maybe a
 fromJSON' v = case fromJSON v of
     Error _ -> Nothing
     Success x -> Just x
+
+
+withAcidState
+    :: (Typeable st, IsAcidic st) => st -> (AcidState st -> IO a) -> IO a
+withAcidState initialState
+    = bracket (openLocalState initialState) createCheckpointAndClose
