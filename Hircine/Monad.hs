@@ -20,7 +20,6 @@ module Hircine.Monad (
 
 import Control.Concurrent
 import Control.Exception (bracket)
-import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
 import qualified Data.Foldable as F
 import Data.Function (fix)
@@ -53,7 +52,7 @@ buffer :: Hircine a -> Hircine a
 buffer h = ReaderT $ \s -> do
     buf <- newIORef []
     r <- runReaderT h s {
-        hsSend = \cs -> liftIO $
+        hsSend = \cs ->
             atomicModifyIORef' buf $ \css ->
                 css `seq` (cs : css, ())
         }
