@@ -10,6 +10,7 @@ import Data.Aeson
 import Data.List
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import Data.Maybe
 import Data.Monoid
 import Data.SafeCopy
 import Data.Text (Text)
@@ -19,7 +20,7 @@ import qualified Data.Text as Text
 data Crate = Crate {
     crateName :: Text,
     crateMaxVersion :: Text,
-    crateDescription :: Text
+    crateDescription :: Maybe Text
     } deriving (Eq, Show)
 
 deriveSafeCopy 0 'base ''Crate
@@ -28,14 +29,14 @@ instance FromJSON Crate where
     parseJSON (Object v) = Crate
         <$> v .: "name"
         <*> v .: "max_version"
-        <*> v .: "description"
+        <*> optional (v .: "description")
     parseJSON _ = empty
 
 
 showCrate :: Crate -> Text
 showCrate p = Text.intercalate " – " [
     crateName p <> " " <> crateMaxVersion p,
-    summarize 80 $ crateDescription p,
+    summarize 80 . fromMaybe "(no description)" $ crateDescription p,
     "https://crates.io/crates/" <> crateName p
     ]
 
@@ -55,7 +56,7 @@ data BrigitteState = BrigitteState {
     crateMap :: !CrateMap
     } deriving Show
 
-type CrateMap = Map Text (Text, Text)
+type CrateMap = Map Text (Text, Maybe Text)
 
 deriveSafeCopy 0 'base ''BrigitteState
 
