@@ -52,7 +52,7 @@ executable brigitte
         buildable: False
     else
         build-depends:
-            base,
+            base >= 4.8 && < 5,
             acid-state,
             aeson,
             bytestring,
