@@ -70,14 +70,14 @@ bot secret acid sess = do
 
 checkNewCrates :: AcidState BrigitteState -> S.Session -> Hircine ()
 checkNewCrates acid sess = forever $ do
-    changedPackages <- liftIO $ do
+    changedCrates <- liftIO $ do
         r <- S.get sess "https://crates.io/summary"
-        let updatedPackages = mapMaybe fromJSON' $
+        let updatedCrates = mapMaybe fromJSON' $
                 (r ^.. responseBody . key "just_updated" . values)
                 ++ (r ^.. responseBody . key "new_crates" . values)
-        update acid $ UpdatePackages updatedPackages
-    buffer . for_ changedPackages $
-        send . PrivMsg [channel] . Text.encodeUtf8 . showPackage
+        update acid $ UpdateCrates updatedCrates
+    buffer . for_ changedCrates $
+        send . PrivMsg [channel] . Text.encodeUtf8 . showCrate
     liftIO . threadDelay $ 60 * 1000 * 1000  -- 60 seconds
 
 

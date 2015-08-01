@@ -16,27 +16,27 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 
 
-data Package = Package {
-    packageName :: Text,
-    packageMaxVersion :: Text,
-    packageDescription :: Text
+data Crate = Crate {
+    crateName :: Text,
+    crateMaxVersion :: Text,
+    crateDescription :: Text
     } deriving (Eq, Show)
 
-deriveSafeCopy 0 'base ''Package
+deriveSafeCopy 0 'base ''Crate
 
-instance FromJSON Package where
-    parseJSON (Object v) = Package
+instance FromJSON Crate where
+    parseJSON (Object v) = Crate
         <$> v .: "name"
         <*> v .: "max_version"
         <*> v .: "description"
     parseJSON _ = empty
 
 
-showPackage :: Package -> Text
-showPackage p = Text.intercalate " – " [
-    packageName p <> " " <> packageMaxVersion p,
-    summarize 80 $ packageDescription p,
-    "https://crates.io/crates/" <> packageName p
+showCrate :: Crate -> Text
+showCrate p = Text.intercalate " – " [
+    crateName p <> " " <> crateMaxVersion p,
+    summarize 80 $ crateDescription p,
+    "https://crates.io/crates/" <> crateName p
     ]
 
 
@@ -52,38 +52,39 @@ summarize limit = Text.unwords . unfoldr f . (,) 0 . Text.words
 
 
 data BrigitteState = BrigitteState {
-    packageMap :: !PackageMap
+    crateMap :: !CrateMap
     } deriving Show
 
-type PackageMap = Map Text (Text, Text)
+type CrateMap = Map Text (Text, Text)
 
 deriveSafeCopy 0 'base ''BrigitteState
 
 
 defaultBrigitteState :: BrigitteState
 defaultBrigitteState = BrigitteState {
-    packageMap = Map.empty
+    crateMap = Map.empty
     }
 
 
--- | Update the internal package map. Return the set of packages that
--- were changed.
-updatePackages :: [Package] -> Update BrigitteState [Package]
-updatePackages updatedPackages = do
-    BrigitteState oldPackages <- get
-    let changedPackages = Map.differenceWith
+-- | Update the internal crate map. Return the set of crates that were
+-- changed.
+updateCrates :: [Crate] -> Update BrigitteState [Crate]
+updateCrates updatedCrates = do
+    BrigitteState oldCrates <- get
+    let changedCrates = Map.differenceWith
             (\new old -> if new /= old then Just new else Nothing)
-            (toPackageMap updatedPackages) oldPackages
-        newPackages = Map.union changedPackages oldPackages
-    put $ BrigitteState newPackages
-    return $ fromPackageMap changedPackages
+            (toCrateMap updatedCrates) oldCrates
+        newCrates = Map.union changedCrates oldCrates
+    put $ BrigitteState newCrates
+    return $ fromCrateMap changedCrates
   where
-    toPackageMap :: [Package] -> PackageMap
-    toPackageMap packages = Map.fromList [
-        (packageName p, (packageMaxVersion p, packageDescription p)) |
-        p <- packages ]
-    fromPackageMap :: PackageMap -> [Package]
-    fromPackageMap packages = [ Package name vers desc |
-        (name, (vers, desc)) <- Map.toList packages ]
+    toCrateMap :: [Crate] -> CrateMap
+    toCrateMap crates = Map.fromList [
+        (crateName p, (crateMaxVersion p, crateDescription p)) |
+        p <- crates ]
 
-makeAcidic ''BrigitteState ['updatePackages]
+    fromCrateMap :: CrateMap -> [Crate]
+    fromCrateMap crates = [ Crate name vers desc |
+        (name, (vers, desc)) <- Map.toList crates ]
+
+makeAcidic ''BrigitteState ['updateCrates]
