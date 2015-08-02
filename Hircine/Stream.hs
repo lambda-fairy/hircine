@@ -3,8 +3,8 @@
 -- | Utilities for parsing and unparsing streams of messages.
 
 module Hircine.Stream (
-    socketToIRCStreams,
-    makeIRCStreams
+    socketToIrcStreams,
+    makeIrcStreams
     ) where
 
 
@@ -24,9 +24,9 @@ import Hircine.Core
 --
 -- The returned actions are not thread-safe.
 --
-socketToIRCStreams :: Socket -> IO (IO (Maybe Message), [Command] -> IO ())
-socketToIRCStreams sock
-    = makeIRCStreams (S.recv sock 8192) (S.sendMany sock)
+socketToIrcStreams :: Socket -> IO (IO (Maybe Message), [Command] -> IO ())
+socketToIrcStreams sock
+    = makeIrcStreams (S.recv sock 8192) (S.sendMany sock)
 
 
 -- | Build IRC streams from a @recv@ and @sendMany@ pair.
@@ -36,11 +36,11 @@ socketToIRCStreams sock
 --
 -- The returned actions are not thread-safe.
 --
-makeIRCStreams
+makeIrcStreams
     :: IO ByteString  -- ^ @recv@
     -> ([ByteString] -> IO ())  -- ^ @sendMany@
     -> IO (IO (Maybe Message), [Command] -> IO ())
-makeIRCStreams recv sendMany = do
+makeIrcStreams recv sendMany = do
     recv' <- parseMessages recv
     let send' = renderCommands sendMany
     return (recv', send')

@@ -40,7 +40,7 @@ main = do
         withAcidState defaultBrigitteState $ \acid ->
             connect "irc.mozilla.org" "6667" $ \(sock, addr) -> do
                 putStrLn $ "Connected to " ++ show addr
-                (is, os) <- socketToIRCStreams sock
+                (is, os) <- socketToIrcStreams sock
                 runHircine (logMessages $ bot secret acid sess) is os
                     `finally` putStrLn "Closing"
 
