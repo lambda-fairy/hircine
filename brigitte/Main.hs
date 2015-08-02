@@ -73,8 +73,7 @@ checkNewCrates acid sess = forever $ do
     changedCrates <- liftIO $ do
         r <- S.get sess "https://crates.io/summary"
         let updatedCrates = mapMaybe fromJSON' $
-                (r ^.. responseBody . key "just_updated" . values)
-                ++ (r ^.. responseBody . key "new_crates" . values)
+                r ^.. responseBody . key "just_updated" . values
         update acid $ UpdateCrates updatedCrates
     buffer . for_ changedCrates $
         send . PrivMsg [channel] . Text.encodeUtf8 . showCrate
