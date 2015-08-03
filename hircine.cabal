@@ -58,6 +58,7 @@ executable brigitte
             bytestring,
             containers,
             hircine,
+            http-client,
             lens,
             lens-aeson,
             mtl,

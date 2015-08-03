@@ -17,6 +17,7 @@ import Data.Maybe
 import Data.Monoid
 import Data.Typeable
 import qualified Data.Text.Encoding as Text
+import Network.HTTP.Client (HttpException)
 import Network.Simple.TCP (connect)
 import Network.Wreq
 import qualified Network.Wreq.Session as S
@@ -71,10 +72,15 @@ bot secret acid sess = do
 checkNewCrates :: AcidState BrigitteState -> S.Session -> Hircine ()
 checkNewCrates acid sess = forever $ do
     changedCrates <- liftIO $ do
-        r <- S.get sess "https://crates.io/summary"
-        let updatedCrates = mapMaybe fromJSON' $
-                r ^.. responseBody . key "just_updated" . values
-        update acid $ UpdateCrates updatedCrates
+        r <- try $ S.get sess "https://crates.io/summary"
+        case r of
+            Left e -> do
+                putStrLn $ "ERROR: " ++ show (e :: HttpException)
+                return []
+            Right r' ->
+                let crates = mapMaybe fromJSON' $
+                        r' ^.. responseBody . key "just_updated" . values
+                in  update acid $ UpdateCrates crates
     buffer . for_ changedCrates $
         send . PrivMsg [channel] . Text.encodeUtf8 . showCrate
     liftIO . threadDelay $ 60 * 1000 * 1000  -- 60 seconds
