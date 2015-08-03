@@ -29,25 +29,23 @@ import Hircine
 import Types
 
 
-channel :: ByteString
-channel = "#brigitte"
-
-
 main :: IO ()
 main = do
     hSetBuffering stdout LineBuffering
+    channel <- getEnv' "BRIGITTE_CHANNEL"
     secret <- getEnv' "BRIGITTE_SECRET"
     S.withSession $ \sess ->
         withAcidState defaultBrigitteState $ \acid ->
             connect "irc.mozilla.org" "6667" $ \(sock, addr) -> do
                 putStrLn $ "Connected to " ++ show addr
                 (is, os) <- socketToIrcStreams sock
-                runHircine (logMessages $ bot secret acid sess) is os
+                runHircine (logMessages $ bot channel secret acid sess) is os
                     `finally` putStrLn "Closing"
 
 
-bot :: ByteString -> AcidState BrigitteState -> S.Session -> Hircine ()
-bot secret acid sess = do
+bot :: ByteString -> ByteString
+    -> AcidState BrigitteState -> S.Session -> Hircine ()
+bot channel secret acid sess = do
     send $ Pass secret
     send $ Nick "brigitte"
     send $ User "brigitte" "SCP-191 is a good IRC bot"
@@ -65,12 +63,12 @@ bot secret acid sess = do
             ? (\(Command code _) ->
                 when (code == "900") $ do
                     send $ Join [channel] []
-                    _ <- fork $ checkNewCrates acid sess
+                    _ <- fork $ checkNewCrates channel acid sess
                     return () )
 
 
-checkNewCrates :: AcidState BrigitteState -> S.Session -> Hircine ()
-checkNewCrates acid sess = forever $ do
+checkNewCrates :: ByteString -> AcidState BrigitteState -> S.Session -> Hircine ()
+checkNewCrates channel acid sess = forever $ do
     changedCrates <- liftIO $ do
         r <- try $ S.get sess "https://crates.io/summary"
         case r of
