@@ -15,11 +15,7 @@ module Hircine.Core (
     showCommand,
 
     -- * Utilities
-    decode,
-    encode,
-
-    -- * For testing
-    testMessage
+    decodeIrc,
 
     ) where
 

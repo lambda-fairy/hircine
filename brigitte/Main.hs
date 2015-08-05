@@ -76,7 +76,7 @@ checkNewCrates channel acid man = forever $ do
                 putStrLn $ "ERROR: " ++ show (e :: HttpException)
                 return []
             Right r' ->
-                let maybeJson = Data.Aeson.decode $ responseBody r'
+                let maybeJson = decode $ responseBody r'
                     crates = extractCrates =<< toList maybeJson
                 in  update acid $ UpdateCrates crates
     buffer . for_ changedCrates $

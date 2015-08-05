@@ -98,26 +98,14 @@ renderCommand (Command method params)
 
 
 showMessage :: Message -> String
-showMessage = Text.unpack . decode . renderMessage
+showMessage = Text.unpack . decodeIrc . renderMessage
 
 showCommand :: Command -> String
-showCommand = Text.unpack . decode . renderCommand
-
-
-testMessage :: Message
-testMessage = Message origin $ Command method params
-  where
-    origin = Just $ FromUser "lfairy" "ducks" "geese"
-    method = Textual "PRIVMSG"
-    params = ["#haskell", "Hello, world!"]
+showCommand = Text.unpack . decodeIrc . renderCommand
 
 
 -- | Try to decode using UTF-8, then Latin-1.
-decode :: ByteString -> Text
-decode s = case Text.decodeUtf8' s of
+decodeIrc :: ByteString -> Text
+decodeIrc s = case Text.decodeUtf8' s of
     Right s' -> s'
     Left _ -> Text.decodeLatin1 s
-
--- | Alias for 'Text.encodeUtf8'.
-encode :: Text -> ByteString
-encode = Text.encodeUtf8
