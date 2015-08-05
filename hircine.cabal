@@ -59,15 +59,14 @@ executable brigitte
             containers,
             hircine,
             http-client,
-            lens,
-            lens-aeson,
+            http-client-tls,
             mtl,
             network-simple,
             safecopy,
-            wreq,
             text,
             transformers,
-            unix
+            unix,
+            unordered-containers
 
 source-repository head
     type: git
