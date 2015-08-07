@@ -17,9 +17,9 @@ import qualified Data.Text as Text
 
 
 data Crate = Crate {
-    crateName :: Text,
-    crateMaxVersion :: Text,
-    crateDescription :: Text
+    crateName :: !Text,
+    crateMaxVersion :: !Text,
+    crateDescription :: !Text
     } deriving (Eq, Show)
 
 deriveSafeCopy 0 'base ''Crate
