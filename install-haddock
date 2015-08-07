@@ -10,5 +10,3 @@ cabal sandbox add-source haddock-api
 cabal sandbox add-source haddock-library
 
 cabal install
-
-readlink -f .cabal-sandbox/bin/haddock
