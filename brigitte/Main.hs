@@ -31,9 +31,7 @@ main = do
     hSetBuffering stdout LineBuffering
     channel <- getEnv' "BRIGITTE_CHANNEL"
     secret <- getEnv' "BRIGITTE_SECRET"
-    man <- newManager tlsManagerSettings {
-        managerResponseTimeout = Just $ 5 * 60
-        }
+    man <- newManager tlsManagerSettings
     withAcidState defaultBrigitteState $ \acid ->
         connect "irc.mozilla.org" "6667" $ \(sock, addr) -> do
             putStrLn $ "Connected to " ++ show addr
