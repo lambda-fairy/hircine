@@ -10,6 +10,7 @@ import Data.Acid
 import Data.Acid.Local
 import Data.Aeson
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as BC
 import Data.Foldable
 import qualified Data.HashMap.Strict as HashMap
 import Data.Monoid
@@ -19,6 +20,7 @@ import Network.HTTP.Client
 import Network.HTTP.Client.TLS
 import Network.Simple.TCP (connect)
 import System.Posix.Env.ByteString
+import System.Remote.Monitoring
 import System.IO
 
 import Hircine
@@ -31,6 +33,10 @@ main = do
     hSetBuffering stdout LineBuffering
     channel <- getEnv' "BRIGITTE_CHANNEL"
     secret <- getEnv' "BRIGITTE_SECRET"
+    ekgPort <- fmap (read . BC.unpack) <$> getEnv "BRIGITTE_EKG_PORT"
+    for_ ekgPort $ \p -> do
+        _ <- forkServer "localhost" p
+        putStrLn $ "Started EKG server on port " ++ show p
     man <- newManager tlsManagerSettings
     withAcidState defaultBrigitteState $ \acid ->
         connect "irc.mozilla.org" "6667" $ \(sock, addr) -> do
