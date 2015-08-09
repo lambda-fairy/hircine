@@ -1,6 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Types where
+module Types (
+    Crate(..),
+    showCrate,
+    CrateMap,
+    defaultCrateMap,
+    updateCrateMap,
+    ) where
 
 
 import Control.Applicative
@@ -19,7 +25,6 @@ data Crate = Crate {
     crateDescription :: !Text
     } deriving (Eq, Show)
 
-
 instance FromJSON Crate where
     parseJSON (Object v) = Crate
         <$> v .: "name"
@@ -27,14 +32,12 @@ instance FromJSON Crate where
         <*> v .: "description"
     parseJSON _ = empty
 
-
 showCrate :: Crate -> Text
 showCrate p = Text.intercalate " – " [
     crateName p <> " " <> crateMaxVersion p,
     summarize 80 $ crateDescription p,
     "https://crates.io/crates/" <> crateName p
     ]
-
 
 summarize :: Int -> Text -> Text
 summarize limit = Text.unwords . unfoldr f . (,) 0 . Text.words
@@ -49,29 +52,26 @@ summarize limit = Text.unwords . unfoldr f . (,) 0 . Text.words
 
 type CrateMap = Map Text (Text, Text)
 
-
 defaultCrateMap :: CrateMap
 defaultCrateMap = Map.empty
-
 
 -- | Update the internal crate map. Return the set of crates that were
 -- changed.
 updateCrateMap :: [Crate] -> CrateMap -> (CrateMap, [Crate])
-updateCrateMap updatedCrates oldCrates =
-    let changedCrates = Map.differenceWith
-            (\new old -> if new /= old then Just new else Nothing)
-            (toCrateMap updatedCrates) oldCrates
-        newCrates = Map.union changedCrates oldCrates
-    in  (newCrates,
-            if Map.null oldCrates
-                then []
-                else fromCrateMap changedCrates)
+updateCrateMap newCrates' oldCrates = (newCrates, changedCrates)
   where
-    toCrateMap :: [Crate] -> CrateMap
-    toCrateMap crates = Map.fromList [
-        (crateName p, (crateMaxVersion p, crateDescription p)) |
-        p <- crates ]
+    newCrates = toCrateMap newCrates'
+    changedCrates
+        | Map.null oldCrates = []
+        | otherwise = fromCrateMap $ Map.differenceWith
+            (\new old -> if new /= old then Just new else Nothing)
+            newCrates oldCrates
 
-    fromCrateMap :: CrateMap -> [Crate]
-    fromCrateMap crates = [ Crate name vers desc |
-        (name, (vers, desc)) <- Map.toList crates ]
+toCrateMap :: [Crate] -> CrateMap
+toCrateMap crates = Map.fromList [
+    (crateName p, (crateMaxVersion p, crateDescription p)) |
+    p <- crates ]
+
+fromCrateMap :: CrateMap -> [Crate]
+fromCrateMap crates = [ Crate name vers desc |
+    (name, (vers, desc)) <- Map.toList crates ]
