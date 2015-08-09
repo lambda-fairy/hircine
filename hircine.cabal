@@ -53,7 +53,6 @@ executable brigitte
     else
         build-depends:
             base >= 4.8 && < 5,
-            acid-state,
             aeson,
             bytestring,
             containers,
@@ -63,7 +62,6 @@ executable brigitte
             http-client-tls,
             mtl,
             network-simple,
-            safecopy,
             text,
             transformers,
             unix,

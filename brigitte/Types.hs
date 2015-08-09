@@ -1,17 +1,14 @@
-{-# LANGUAGE OverloadedStrings, TemplateHaskell, TypeFamilies #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Types where
 
 
 import Control.Applicative
-import Control.Monad.State
-import Data.Acid
 import Data.Aeson
 import Data.List
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Monoid
-import Data.SafeCopy
 import Data.Text (Text)
 import qualified Data.Text as Text
 
@@ -22,7 +19,6 @@ data Crate = Crate {
     crateDescription :: !Text
     } deriving (Eq, Show)
 
-deriveSafeCopy 0 'base ''Crate
 
 instance FromJSON Crate where
     parseJSON (Object v) = Crate
@@ -51,32 +47,25 @@ summarize limit = Text.unwords . unfoldr f . (,) 0 . Text.words
         n' = n + Text.length w
 
 
-data BrigitteState = BrigitteState {
-    crateMap :: !CrateMap
-    } deriving Show
-
 type CrateMap = Map Text (Text, Text)
 
-deriveSafeCopy 0 'base ''BrigitteState
 
-
-defaultBrigitteState :: BrigitteState
-defaultBrigitteState = BrigitteState {
-    crateMap = Map.empty
-    }
+defaultCrateMap :: CrateMap
+defaultCrateMap = Map.empty
 
 
 -- | Update the internal crate map. Return the set of crates that were
 -- changed.
-updateCrates :: [Crate] -> Update BrigitteState [Crate]
-updateCrates updatedCrates = do
-    BrigitteState oldCrates <- get
+updateCrateMap :: [Crate] -> CrateMap -> (CrateMap, [Crate])
+updateCrateMap updatedCrates oldCrates =
     let changedCrates = Map.differenceWith
             (\new old -> if new /= old then Just new else Nothing)
             (toCrateMap updatedCrates) oldCrates
         newCrates = Map.union changedCrates oldCrates
-    put $ BrigitteState newCrates
-    return $ fromCrateMap changedCrates
+    in  (newCrates,
+            if Map.null oldCrates
+                then []
+                else fromCrateMap changedCrates)
   where
     toCrateMap :: [Crate] -> CrateMap
     toCrateMap crates = Map.fromList [
@@ -86,5 +75,3 @@ updateCrates updatedCrates = do
     fromCrateMap :: CrateMap -> [Crate]
     fromCrateMap crates = [ Crate name vers desc |
         (name, (vers, desc)) <- Map.toList crates ]
-
-makeAcidic ''BrigitteState ['updateCrates]
