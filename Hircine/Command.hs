@@ -6,7 +6,6 @@ module Hircine.Command where
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Foldable as F
-import qualified Data.Traversable as T
 import Data.Maybe
 
 import Hircine.Core
@@ -15,13 +14,6 @@ import Hircine.Core
 class IsCommand a where
     fromCommand :: Command -> Maybe a
     toCommand :: a -> Command
-
-
-fromMessage :: IsCommand a => Message -> Maybe (Msg a)
-fromMessage = T.traverse fromCommand
-
-toMessage :: IsCommand a => Msg a -> Message
-toMessage = fmap toCommand
 
 
 (?) :: (Monad m, IsCommand a) => m Command -> (a -> m ()) -> m Command
