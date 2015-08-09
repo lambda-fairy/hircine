@@ -28,6 +28,10 @@ import Hircine
 import Types
 
 
+userAgent :: ByteString
+userAgent = "Brigitte (https://git.io/brigitte)"
+
+
 main :: IO ()
 main = do
     hSetBuffering stdout LineBuffering
@@ -73,7 +77,10 @@ bot channel secret acid man = do
 checkNewCrates :: ByteString -> AcidState BrigitteState -> Manager -> Hircine ()
 checkNewCrates channel acid man = forever $ do
     changedCrates <- liftIO $ do
-        req <- parseUrl "https://crates.io/summary"
+        initReq <- parseUrl "https://crates.io/summary"
+        let req = initReq {
+            requestHeaders = ("User-Agent", userAgent) : requestHeaders initReq
+            }
         r <- try $ httpLbs req man
         case r of
             Left e -> do
