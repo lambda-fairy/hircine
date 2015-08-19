@@ -9,9 +9,8 @@ machine:
 
 dependencies:
   override:
-    - sudo apt-get install hscolour
     - cabal update
-    - cabal install --only-dependencies --enable-documentation --haddock-hyperlink-source
+    - cabal install --only-dependencies --enable-documentation
 
 test:
   override:
