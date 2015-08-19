@@ -11,7 +11,7 @@ module Types (
 
 import Control.Applicative
 import Data.Aeson
-import Data.List
+import Data.Char
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Monoid
@@ -35,19 +35,20 @@ instance FromJSON Crate where
 showCrate :: Crate -> Text
 showCrate p = Text.intercalate " – " [
     crateName p <> " " <> crateMaxVersion p,
-    summarize 80 $ crateDescription p,
+    clipTo 80 . collapseSpaces $ crateDescription p,
     "https://crates.io/crates/" <> crateName p
     ]
 
-summarize :: Int -> Text -> Text
-summarize limit = Text.unwords . unfoldr f . (,) 0 . Text.words
-  where
-    f (_, []) = Nothing
-    f (n, (w : ws))
-        | n' > limit = Just ("…", (n', []))
-        | otherwise = Just (w, (n', ws))
-      where
-        n' = n + Text.length w
+clipTo :: Int -> Text -> Text
+clipTo n s
+    | Text.length s <= n = s
+    | otherwise =
+        (Text.dropWhileEnd isSpace . Text.dropWhileEnd (not . isSpace) $
+            Text.take (n + 1) s)
+        <> "…"
+
+collapseSpaces :: Text -> Text
+collapseSpaces = Text.unwords . Text.words
 
 
 type CrateMap = Map Text (Text, Text)
