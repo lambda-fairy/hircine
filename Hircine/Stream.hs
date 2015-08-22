@@ -6,15 +6,12 @@ module Hircine.Stream (
     Stream(..),
     makeStream,
     handleStream,
-    socketStream,
     ) where
 
 
 import Control.Applicative
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
-import Network (Socket)
-import qualified Network.Socket as S
 import System.IO
 import Prelude  -- GHC 7.10
 
@@ -30,11 +27,6 @@ data Stream = Stream {
 -- | Convert a 'Handle' to an IRC stream.
 handleStream :: Handle -> Stream
 handleStream h = makeStream (B.hGetLine h) (B.hPutStr h)
-
-
--- | Convert a 'Socket' to an IRC stream.
-socketStream :: Socket -> IO Stream
-socketStream s = handleStream <$> S.socketToHandle s ReadWriteMode
 
 
 -- | Build an IRC stream.

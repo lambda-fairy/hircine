@@ -14,9 +14,10 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.IORef
 import Data.Monoid
 import qualified Data.Text.Encoding as Text
+import Network.Socket (HostName, ServiceName, SockAddr, socketToHandle)
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
-import Network.Simple.TCP (connect)
+import Network.Simple.TCP (connectSock)
 import System.Posix.Env.ByteString
 import System.Remote.Monitoring
 import System.IO
@@ -41,10 +42,9 @@ main = do
         putStrLn $ "Started EKG server on port " ++ show p
     man <- newManager tlsManagerSettings
     crateMap <- newIORef defaultCrateMap
-    connect "irc.mozilla.org" "6667" $ \(sock, addr) -> do
+    connect "irc.mozilla.org" "6667" $ \(hdl, addr) -> do
         putStrLn $ "Connected to " ++ show addr
-        stream <- socketStream sock
-        runHircine (logMessages $ bot channel secret crateMap man) stream
+        runHircine (logMessages $ bot channel secret crateMap man) (handleStream hdl)
             `finally` putStrLn "Closing"
 
 
@@ -108,6 +108,14 @@ logMessages = local $ \s -> s {
         for_ cs $ \c -> putStrLn $ " -> " ++ showCommand c
         hsSend s cs
     }
+
+
+connect :: HostName -> ServiceName -> ((Handle, SockAddr) -> IO r) -> IO r
+connect host' port' = bracket
+    (do (sock, addr) <- connectSock host' port'
+        hdl <- socketToHandle sock ReadWriteMode
+        return (hdl, addr) )
+    (hClose . fst)
 
 
 getEnv' :: ByteString -> IO ByteString

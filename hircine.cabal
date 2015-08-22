@@ -61,6 +61,7 @@ executable brigitte
             http-client,
             http-client-tls,
             mtl,
+            network,
             network-simple,
             text,
             transformers,
