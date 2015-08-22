@@ -9,11 +9,11 @@ module Hircine.Stream (
     ) where
 
 
-import Control.Applicative
+import Control.Exception
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import System.IO
-import Prelude  -- GHC 7.10
+import System.IO.Error
 
 import Hircine.Core
 
@@ -44,14 +44,15 @@ makeStream get put = Stream {
 
 parseMessages :: IO ByteString -> IO (Maybe Message)
 parseMessages get = do
-    s <- fst . B.spanEnd isCRLF <$> get
-    if B.null s
-        then return Nothing
-        else case parseMessage s of
+    r <- try get
+    case r of
+        Left e | isEOFError e -> return Nothing
+        Left e -> throwIO e
+        Right s -> case parseMessage $ stripCRLF s of
             Left _ -> error $ "parseMessages: invalid message: " ++ show s
             Right m -> return $ Just m
   where
-    isCRLF c = c == 10 || c == 13
+    stripCRLF = fst . B.spanEnd (\c -> c == 10 || c == 13)
 
 
 renderCommands :: (ByteString -> IO ()) -> [Command] -> IO ()
