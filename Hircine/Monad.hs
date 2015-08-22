@@ -28,6 +28,7 @@ import qualified SlaveThread
 
 import Hircine.Core
 import Hircine.Command
+import Hircine.Stream
 
 
 type Hircine = ReaderT HircineState IO
@@ -72,18 +73,18 @@ fork :: Hircine () -> Hircine ThreadId
 fork h = ReaderT $ SlaveThread.fork . runReaderT h
 
 
-runHircine :: Hircine () -> IO (Maybe Message) -> ([Command] -> IO ()) -> IO ()
-runHircine h receive' send' = do
+runHircine :: Hircine () -> Stream -> IO ()
+runHircine h s = do
     sendLock <- newMVar ()
     incoming <- newEmptyMVar
     bracket
         (forkIO $ runReaderT h HircineState {
             hsReceive = takeMVar incoming,
-            hsSend = \cs -> withMVar sendLock $ \_ -> send' cs
+            hsSend = \cs -> withMVar sendLock $ \_ -> streamSend s cs
             })
         (\t -> takeMVar sendLock >> killThread t)
         (\_ -> fix $ \loop -> do
-            m <- receive'
+            m <- streamReceive s
             F.for_ m $ \m' -> do
                 putMVar incoming m'
                 loop )

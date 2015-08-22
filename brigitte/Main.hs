@@ -43,8 +43,8 @@ main = do
     crateMap <- newIORef defaultCrateMap
     connect "irc.mozilla.org" "6667" $ \(sock, addr) -> do
         putStrLn $ "Connected to " ++ show addr
-        (is, os) <- socketToIrcStreams sock
-        runHircine (logMessages $ bot channel secret crateMap man) is os
+        stream <- socketStream sock
+        runHircine (logMessages $ bot channel secret crateMap man) stream
             `finally` putStrLn "Closing"
 
 
