@@ -9,15 +9,15 @@ import Control.Monad.Trans.Reader
 import Data.Aeson
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as BC
+import Data.Default.Class
 import Data.Foldable
 import qualified Data.HashMap.Strict as HashMap
 import Data.IORef
 import Data.Monoid
 import qualified Data.Text.Encoding as Text
-import Network.Socket (HostName, ServiceName, SockAddr, socketToHandle)
+import Network.Connection
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
-import Network.Simple.TCP (connectSock)
 import System.Posix.Env.ByteString
 import System.Remote.Monitoring
 import System.IO
@@ -42,9 +42,19 @@ main = do
         putStrLn $ "Started EKG server on port " ++ show p
     man <- newManager tlsManagerSettings
     crateMap <- newIORef defaultCrateMap
-    connect "irc.mozilla.org" "6667" $ \(hdl, addr) -> do
-        putStrLn $ "Connected to " ++ show addr
-        runHircine (logMessages $ bot channel secret crateMap man) (handleStream hdl)
+    context <- initConnectionContext
+    let params = ConnectionParams {
+        connectionHostname = "irc.mozilla.org",
+        connectionPort = 6697,
+        connectionUseSecure = Just def,
+        connectionUseSocks = Nothing
+        }
+    connect context params $ \conn -> do
+        putStrLn $ "Connected to " ++ show (connectionID conn)
+        let stream = makeStream
+                (connectionGetLine 1024 conn)
+                (connectionPut conn)
+        runHircine (logMessages $ bot channel secret crateMap man) stream
             `finally` putStrLn "Closing"
 
 
@@ -110,12 +120,8 @@ logMessages = local $ \s -> s {
     }
 
 
-connect :: HostName -> ServiceName -> ((Handle, SockAddr) -> IO r) -> IO r
-connect host' port' = bracket
-    (do (sock, addr) <- connectSock host' port'
-        hdl <- socketToHandle sock ReadWriteMode
-        return (hdl, addr) )
-    (hClose . fst)
+connect :: ConnectionContext -> ConnectionParams -> (Connection -> IO r) -> IO r
+connect context params = bracket (connectTo context params) connectionClose
 
 
 getEnv' :: ByteString -> IO ByteString
