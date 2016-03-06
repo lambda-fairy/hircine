@@ -103,8 +103,9 @@ checkNewCrates channel crateMap man = forever $ do
   where
     extractCrates :: Value -> [Crate]
     extractCrates (Object v) = [ crate |
-        Array entries <- toList $ HashMap.lookup "just_updated" v,
-        Success crate <- map fromJSON $ toList entries ]
+        Array justUpdated <- toList $ HashMap.lookup "just_updated" v,
+        Array newCrates <- toList $ HashMap.lookup "new_crates" v,
+        Success crate <- map fromJSON $ toList justUpdated ++ toList newCrates ]
     extractCrates _ = []
 
 
