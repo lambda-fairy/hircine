@@ -91,7 +91,7 @@ checkNewCrates channel crateMap man = forever $ do
         r <- try $ httpLbs req man
         case r of
             Left e -> do
-                putStrLn $ "ERROR: " ++ show (e :: HttpException)
+                putStrLn $ "** ERROR: " ++ show (e :: HttpException)
                 return []
             Right r' ->
                 let maybeJson = decode $ responseBody r'
