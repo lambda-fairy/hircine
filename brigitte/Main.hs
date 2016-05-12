@@ -61,8 +61,8 @@ main = do
 bot :: ByteString -> ByteString -> IORef CrateMap -> Manager -> Hircine ()
 bot channel secret crateMap man = do
     send $ Pass secret
-    send $ Nick "Brigitte"
-    send $ User "Brigitte" "SCP-191 is a good IRC bot"
+    send $ Nick "[cargobot]"
+    send $ User "[cargobot]" "SCP-191 is a good IRC bot"
     forever $ do
         Message origin command <- receive
         return command
