@@ -1,12 +1,23 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Hircine.Command where
 
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
-import qualified Data.Foldable as F
+import Data.Foldable
 import Data.Maybe
+import Data.Proxy
+import Data.String
+import GHC.TypeLits
 
 import Hircine.Core
 
@@ -19,7 +30,7 @@ class IsCommand a where
 (?) :: (Monad m, IsCommand a) => m Command -> (a -> m ()) -> m Command
 m ? k = do
     c <- m
-    F.mapM_ k $ fromCommand c
+    mapM_ k $ fromCommand c
     return c
 infixl 2 ?
 
@@ -29,99 +40,100 @@ instance IsCommand Command where
     toCommand = id
 
 
+newtype ParsedCommand (method :: Symbol) (params :: [*]) = ParsedCommand (List params)
+
+instance forall method params. (KnownSymbol method, IsParams params) => IsCommand (ParsedCommand method params) where
+    fromCommand (Command method' params)
+        | method /= method' = Nothing
+        | otherwise = ParsedCommand <$> parseParams params
+      where
+        method = fromString $ symbolVal (Proxy :: Proxy method)
+    toCommand (ParsedCommand params) = Command method (renderParams params)
+      where
+        method = fromString $ symbolVal (Proxy :: Proxy method)
+
+
+data List (params :: [*]) where
+    Nil :: List '[]
+    (:-) :: a -> List b -> List (a ': b)
+infixr 5 :-
+
+
+class IsParams (params :: [*]) where
+    parseParams :: [Bytes] -> Maybe (List params)
+    renderParams :: List params -> [Bytes]
+
+instance IsParams '[] where
+    parseParams [] = Just Nil
+    parseParams _ = Nothing
+    renderParams Nil = []
+
+instance (IsParam a, IsParams b) => IsParams (a ': b) where
+    parseParams (x : xs) = (:-) <$> parseParam x <*> parseParams xs
+    parseParams _ = Nothing
+    renderParams (x :- xs) = toList (renderParam x) ++ renderParams xs
+
+
+class IsParam a where
+    parseParam :: Bytes -> Maybe a
+    renderParam :: a -> Maybe Bytes
+
+instance IsParam ByteString where
+    parseParam = Just
+    renderParam = Just
+
+newtype CommaSep a = CommaSep [a]
+    deriving (Read, Show)
+
+instance IsParam a => IsParam (CommaSep a) where
+    parseParam = fmap CommaSep . traverse parseParam . B.split ','
+    renderParam (CommaSep xs) = Just $ B.intercalate "," $ mapMaybe renderParam xs
+
+instance IsParam a => IsParam (Maybe a) where
+    parseParam "" = Just Nothing
+    parseParam x = Just <$> parseParam x
+    renderParam x = x >>= renderParam
+
+
 type Bytes = ByteString
 
 
-data Join = Join ![Bytes] ![Bytes]
-    deriving (Read, Show)
+pattern Join :: [Bytes] -> [Bytes] -> ParsedCommand "JOIN" '[CommaSep Bytes, Maybe (CommaSep Bytes)]
+pattern Join channels keys <-
+    ParsedCommand (
+        CommaSep channels :-
+        ((\keys' -> case keys' of
+            Just (CommaSep xs) -> xs
+            Nothing -> []
+        ) -> keys) :-
+        Nil)
+  where
+    Join channels keys = ParsedCommand (CommaSep channels :- packKeys keys :- Nil)
+      where
+        packKeys [] = Nothing
+        packKeys xs = Just (CommaSep xs)
 
-instance IsCommand Join where
-    fromCommand (Command "JOIN" [channels, keys]) = Just $ Join (B.split ',' channels) (B.split ',' keys)
-    fromCommand (Command "JOIN" [channels]) = Just $ Join (B.split ',' channels) []
-    fromCommand _ = Nothing
+pattern Nick :: Bytes -> ParsedCommand "NICK" '[Bytes]
+pattern Nick nick = ParsedCommand (nick :- Nil)
 
-    toCommand (Join channels []) = Command "JOIN" [B.intercalate "," channels]
-    toCommand (Join channels keys) = Command "JOIN" [B.intercalate "," channels, B.intercalate "," keys]
+pattern Notice :: [Bytes] -> Bytes -> ParsedCommand "NOTICE" '[CommaSep Bytes, Bytes]
+pattern Notice targets message = ParsedCommand (CommaSep targets :- message :- Nil)
 
+pattern Pass :: Bytes -> ParsedCommand "PASS" '[Bytes]
+pattern Pass pass = ParsedCommand (pass :- Nil)
 
-data Nick = Nick !Bytes
-    deriving (Read, Show)
+pattern Ping :: Bytes -> Maybe Bytes -> ParsedCommand "PING" '[Bytes, Maybe Bytes]
+pattern Ping server1 server2 = ParsedCommand (server1 :- server2 :- Nil)
 
-instance IsCommand Nick where
-    fromCommand (Command "NICK" [nick]) = Just $ Nick nick
-    fromCommand _ = Nothing
+pattern Pong :: Bytes -> Maybe Bytes -> ParsedCommand "PONG" '[Bytes, Maybe Bytes]
+pattern Pong server1 server2 = ParsedCommand (server1 :- server2 :- Nil)
 
-    toCommand (Nick nick) = Command "NICK" [nick]
+pattern PrivMsg :: [Bytes] -> Bytes -> ParsedCommand "PRIVMSG" '[CommaSep Bytes, Bytes]
+pattern PrivMsg targets message = ParsedCommand (CommaSep targets :- message :- Nil)
 
+pattern Quit :: Maybe Bytes -> ParsedCommand "QUIT" '[Maybe Bytes]
+pattern Quit message = ParsedCommand (message :- Nil)
 
-data Notice = Notice ![Bytes] !Bytes
-    deriving (Read, Show)
-
-instance IsCommand Notice where
-    fromCommand (Command "NOTICE" [targets, message]) = Just $ Notice (B.split ',' targets) message
-    fromCommand _ = Nothing
-
-    toCommand (Notice targets message) = Command "NOTICE" [B.intercalate "," targets, message]
-
-
-data Pass = Pass !Bytes
-    deriving (Read, Show)
-
-instance IsCommand Pass where
-    fromCommand (Command "PASS" [pass]) = Just $ Pass pass
-    fromCommand _ = Nothing
-
-    toCommand (Pass pass) = Command "PASS" [pass]
-
-
-data Ping = Ping !Bytes !(Maybe Bytes)
-    deriving (Read, Show)
-
-instance IsCommand Ping where
-    fromCommand (Command "PING" [server1]) = Just $ Ping server1 Nothing
-    fromCommand (Command "PING" [server1, server2]) = Just $ Ping server1 (Just server2)
-    fromCommand _ = Nothing
-
-    toCommand (Ping server1 server2) = Command "PING" $ server1 : maybeToList server2
-
-
-data Pong = Pong !Bytes !(Maybe Bytes)
-    deriving (Read, Show)
-
-instance IsCommand Pong where
-    fromCommand (Command "PONG" [server1]) = Just $ Pong server1 Nothing
-    fromCommand (Command "PONG" [server1, server2]) = Just $ Pong server1 (Just server2)
-    fromCommand _ = Nothing
-
-    toCommand (Pong server1 server2) = Command "PONG" $ server1 : maybeToList server2
-
-
-data PrivMsg = PrivMsg ![Bytes] !Bytes
-    deriving (Read, Show)
-
-instance IsCommand PrivMsg where
-    fromCommand (Command "PRIVMSG" [targets, message]) = Just $ PrivMsg (B.split ',' targets) message
-    fromCommand _ = Nothing
-
-    toCommand (PrivMsg targets message) = Command "PRIVMSG" [B.intercalate "," targets, message]
-
-
-data Quit = Quit !(Maybe Bytes)
-    deriving (Read, Show)
-
-instance IsCommand Quit where
-    fromCommand (Command "QUIT" []) = Just $ Quit Nothing
-    fromCommand (Command "QUIT" [message]) = Just $ Quit (Just message)
-    fromCommand _ = Nothing
-
-    toCommand (Quit message) = Command "QUIT" $ maybeToList message
-
-
-data User = User !Bytes !Bytes
-    deriving (Read, Show)
-
-instance IsCommand User where
-    fromCommand (Command "USER" [user, _, _, realname]) = Just $ User user realname
-    fromCommand _ = Nothing
-
-    toCommand (User user realname) = Command "USER" [user, "0", "*", realname]
+pattern User :: Bytes -> Bytes -> ParsedCommand "USER" '[Bytes, Bytes, Bytes, Bytes]
+pattern User user realname <- ParsedCommand (user :- _ :- _ :- realname :- Nil) where
+    User user realname = ParsedCommand (user :- "0" :- "*" :- realname :- Nil)

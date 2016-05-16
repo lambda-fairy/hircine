@@ -21,7 +21,7 @@ module Hircine.Monad (
 import Control.Concurrent
 import Control.Exception (bracket)
 import Control.Monad.Trans.Reader
-import qualified Data.Foldable as F
+import Data.Foldable
 import Data.Function (fix)
 import Data.IORef
 import qualified SlaveThread
@@ -85,6 +85,6 @@ runHircine h s = do
         (\t -> takeMVar sendLock >> killThread t)
         (\_ -> fix $ \loop -> do
             m <- streamReceive s
-            F.for_ m $ \m' -> do
+            for_ m $ \m' -> do
                 putMVar incoming m'
                 loop )
