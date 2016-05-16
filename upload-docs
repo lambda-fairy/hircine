@@ -7,11 +7,7 @@ REPO_URL="$2"
 
 CIRCLE_YML="$(readlink -f circle.yml)"
 
-cabal install haddock
-HADDOCK="$(readlink -f .cabal-sandbox/bin/haddock)"
-
 cabal haddock \
-    --with-haddock="$HADDOCK" \
     --haddock-options=--pretty-html \
     --haddock-options=--hyperlinked-source \
     --html-location='https://hackage.haskell.org/package/$pkg-$version/docs'
