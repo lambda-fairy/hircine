@@ -6,7 +6,40 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Hircine.Command where
+-- | This module provides a typed interface for handling IRC commands.
+-- It lets you work in terms of e.g. 'Join' or 'PrivMsg' values instead
+-- of having to match on the raw 'Command' type.
+
+module Hircine.Command (
+
+    -- * Parsing and un-parsing commands
+    (?),
+    IsCommand(..),
+    Bytes,
+
+    -- * Command types
+    pattern Join,
+    pattern Nick,
+    pattern Notice,
+    pattern Pass,
+    pattern Ping,
+    pattern Pong,
+    pattern PrivMsg,
+    pattern Quit,
+    pattern User,
+
+    -- * Low-level machinery
+    -- | This section contains the low-level machinery that makes this
+    -- module work. You shouldn't need to deal with these routines
+    -- unless you're adding a new command.
+    ParsedCommand(..),
+    ParamParser,
+    runParamParser,
+    IsParams(..),
+    CommaSep(..),
+    unCommaSep,
+
+    ) where
 
 
 import Control.Applicative
@@ -21,11 +54,31 @@ import GHC.TypeLits
 import Hircine.Core
 
 
+-- | Represents a type that can be converted to and from a raw 'Command'.
 class IsCommand a where
     fromCommand :: Command -> Maybe a
     toCommand :: a -> Command
 
 
+-- | Handle a command.
+--
+-- @m ? k@ attempts to parse the command contained in @m@. If
+-- successful, it calls @k@ with the parsed result. Otherwise, the
+-- callback is ignored. Either way, the original command is returned
+-- unchanged.
+--
+-- This operator is designed to be chained, invoking a separate callback
+-- for each command type. A typical bot would look like this:
+--
+-- @
+-- return c
+--     ? (\\(PrivMsg target message) -> ...)
+--     ? (\\(Ping server1 server2) -> ...)
+--     ...
+-- @
+--
+-- This code will invoke the first callback when the incoming command is
+-- a @PRIVMSG@, and the second when the command is a @PING@.
 (?) :: (Monad m, IsCommand a) => m Command -> (a -> m ()) -> m Command
 m ? k = do
     c <- m
@@ -39,6 +92,7 @@ instance IsCommand Command where
     toCommand = id
 
 
+-- | Represents a validated IRC command.
 newtype ParsedCommand (method :: Symbol) params = ParsedCommand params
     deriving Show
 
@@ -53,6 +107,7 @@ instance forall method params. (KnownSymbol method, IsParams params) => IsComman
         method = fromString $ symbolVal (Proxy :: Proxy method)
 
 
+-- | Convenient synonym for 'ByteString'.
 type Bytes = ByteString
 
 
