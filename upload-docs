@@ -7,6 +7,7 @@ REPO_URL="$2"
 
 CIRCLE_YML="$(readlink -f circle.yml)"
 
+cabal build
 cabal haddock \
     --haddock-options=--pretty-html \
     --haddock-options=--hyperlinked-source \
