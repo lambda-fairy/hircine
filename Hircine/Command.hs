@@ -93,7 +93,7 @@ instance IsParams ByteString where
     parseParams = StateT uncons
     renderParams x = [x]
 
-newtype CommaSep a = CommaSep [a]
+newtype CommaSep a = CommaSep { unCommaSep :: [a] }
     deriving (Read, Show)
 
 instance IsParams a => IsParams (CommaSep a) where
@@ -107,19 +107,10 @@ instance IsParams a => IsParams (Maybe a) where
     renderParams = foldMap renderParams
 
 
-pattern Join :: [Bytes] -> [Bytes] -> ParsedCommand "JOIN" (CommaSep Bytes, Maybe (CommaSep Bytes))
-pattern Join channels keys <-
-    ParsedCommand (
-        CommaSep channels,
-        ((\keys' -> case keys' of
-            Just (CommaSep xs) -> xs
-            Nothing -> []
-        ) -> keys))
+pattern Join :: [Bytes] -> Maybe [Bytes] -> ParsedCommand "JOIN" (CommaSep Bytes, Maybe (CommaSep Bytes))
+pattern Join channels keys <- ParsedCommand (CommaSep channels, fmap unCommaSep -> keys)
   where
-    Join channels keys = ParsedCommand (CommaSep channels, packKeys keys)
-      where
-        packKeys [] = Nothing
-        packKeys xs = Just (CommaSep xs)
+    Join channels keys = ParsedCommand (CommaSep channels, CommaSep <$> keys)
 
 pattern Nick :: Bytes -> ParsedCommand "NICK" Bytes
 pattern Nick nick = ParsedCommand nick

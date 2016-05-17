@@ -76,7 +76,7 @@ bot channel secret crateMap man = do
                     _ -> return () )
             ? (\(Command code _) ->
                 when (code == "900") $ do
-                    send $ Join [channel] []
+                    send $ Join [channel] Nothing
                     _ <- fork $ checkNewCrates channel crateMap man
                     return () )
 
