@@ -45,7 +45,7 @@ newtype ParsedCommand (method :: Symbol) params = ParsedCommand params
 
 instance forall method params. (KnownSymbol method, IsParams params) => IsCommand (ParsedCommand method params) where
     fromCommand (Command method' params')
-        | method == method', Just (params, []) <- runStateT parseParams params' = Just $ ParsedCommand params
+        | method == method' = ParsedCommand <$> runParamParser parseParams params'
         | otherwise = Nothing
       where
         method = fromString $ symbolVal (Proxy :: Proxy method)
@@ -57,8 +57,16 @@ instance forall method params. (KnownSymbol method, IsParams params) => IsComman
 type Bytes = ByteString
 
 
+type ParamParser = StateT [Bytes] Maybe
+
+runParamParser :: Alternative f => ParamParser a -> [Bytes] -> f a
+runParamParser parse params'
+    | Just (params, []) <- runStateT parse params' = pure params
+    | otherwise = empty
+
+
 class IsParams a where
-    parseParams :: StateT [Bytes] Maybe a
+    parseParams :: ParamParser a
     renderParams :: a -> [Bytes]
 
 instance IsParams () where
@@ -85,19 +93,21 @@ instance IsParams ByteString where
     parseParams = StateT uncons
     renderParams x = [x]
 
-newtype CommaSep = CommaSep [Bytes]
+newtype CommaSep a = CommaSep [a]
     deriving (Read, Show)
 
-instance IsParams CommaSep where
-    parseParams = CommaSep . B.split ',' <$> StateT uncons
-    renderParams (CommaSep xs) = [B.intercalate "," xs]
+instance IsParams a => IsParams (CommaSep a) where
+    parseParams = do
+        pieces <- B.split ',' <$> StateT uncons
+        runParamParser (CommaSep <$> many parseParams) pieces
+    renderParams (CommaSep xs) = [B.intercalate "," $ concatMap renderParams xs]
 
 instance IsParams a => IsParams (Maybe a) where
     parseParams = optional parseParams
     renderParams = foldMap renderParams
 
 
-pattern Join :: [Bytes] -> [Bytes] -> ParsedCommand "JOIN" (CommaSep, Maybe CommaSep)
+pattern Join :: [Bytes] -> [Bytes] -> ParsedCommand "JOIN" (CommaSep Bytes, Maybe (CommaSep Bytes))
 pattern Join channels keys <-
     ParsedCommand (
         CommaSep channels,
@@ -114,7 +124,7 @@ pattern Join channels keys <-
 pattern Nick :: Bytes -> ParsedCommand "NICK" Bytes
 pattern Nick nick = ParsedCommand nick
 
-pattern Notice :: [Bytes] -> Bytes -> ParsedCommand "NOTICE" (CommaSep, Bytes)
+pattern Notice :: [Bytes] -> Bytes -> ParsedCommand "NOTICE" (CommaSep Bytes, Bytes)
 pattern Notice targets message = ParsedCommand (CommaSep targets, message)
 
 pattern Pass :: Bytes -> ParsedCommand "PASS" Bytes
@@ -126,7 +136,7 @@ pattern Ping server1 server2 = ParsedCommand (server1, server2)
 pattern Pong :: Bytes -> Maybe Bytes -> ParsedCommand "PONG" (Bytes, Maybe Bytes)
 pattern Pong server1 server2 = ParsedCommand (server1, server2)
 
-pattern PrivMsg :: [Bytes] -> Bytes -> ParsedCommand "PRIVMSG" (CommaSep, Bytes)
+pattern PrivMsg :: [Bytes] -> Bytes -> ParsedCommand "PRIVMSG" (CommaSep Bytes, Bytes)
 pattern PrivMsg targets message = ParsedCommand (CommaSep targets, message)
 
 pattern Quit :: Maybe Bytes -> ParsedCommand "QUIT" (Maybe Bytes)
