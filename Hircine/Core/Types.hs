@@ -3,39 +3,22 @@
 module Hircine.Core.Types where
 
 
-import Control.Applicative
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
 import Data.Char
-import qualified Data.Foldable as F
 import Data.Monoid
 import qualified Data.Text.Encoding as Text
 import Data.Text (Text)
 import qualified Data.Text as Text
-import qualified Data.Traversable as T
 import Data.Word
-import Prelude  -- GHC 7.10
-
-
--- | A raw message.
-type Message = Msg Command
 
 
 -- | An IRC message consists of an optional prefix, along with a message
 -- body.
-data Msg body = Message {
+data Message = Message {
     msgOrigin :: !(Maybe Origin),
-    msgCommand :: !body
+    msgCommand :: !Command
     } deriving (Eq, Read, Show)
-
-instance Functor Msg where
-    fmap f (Message origin command) = Message origin (f command)
-
-instance F.Foldable Msg where
-    foldMap f (Message _ command) = f command
-
-instance T.Traversable Msg where
-    traverse f (Message origin command) = Message origin <$> f command
 
 
 -- | A message can originate from a fellow user, or the server itself.
@@ -68,7 +51,7 @@ data Method = Textual !ByteString | Numeric !Word8 !Word8 !Word8
 -- | Render a message into a string.
 renderMessage :: Message -> ByteString
 renderMessage (Message origin command)
-    = F.foldMap renderOrigin origin <> renderCommand command
+    = foldMap renderOrigin origin <> renderCommand command
   where
     renderOrigin (FromServer host) = ":" <> host <> " "
     renderOrigin (FromUser nick user host)

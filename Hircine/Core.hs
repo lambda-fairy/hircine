@@ -1,8 +1,7 @@
 module Hircine.Core (
 
     -- * Types
-    Message,
-    Msg(..),
+    Message(..),
     Origin(..),
     Command(..),
     Method(..),
