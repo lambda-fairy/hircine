@@ -17,6 +17,7 @@ import Data.Foldable
 import Data.Maybe
 import Data.Proxy
 import Data.String
+import Data.Void
 import GHC.TypeLits
 
 import Hircine.Core
@@ -40,15 +41,16 @@ instance IsCommand Command where
     toCommand = id
 
 
-newtype ParsedCommand (method :: Symbol) (params :: [*]) = ParsedCommand (List params)
+newtype ParsedCommand (method :: Symbol) (params :: [*]) extra = ParsedCommand (List params) (Maybe extra)
 
-instance forall method params. (KnownSymbol method, IsParams params) => IsCommand (ParsedCommand method params) where
+instance forall method params extra. (KnownSymbol method, IsParams params, IsParam extra) => IsCommand (ParsedCommand method params extra) where
     fromCommand (Command method' params)
         | method /= method' = Nothing
-        | otherwise = ParsedCommand <$> parseParams params
+        | otherwise = ParsedCommand <$> parseParams params <*> pure Nothing
+            <|> ParsedCommand <$> parseParams (init params) <*> (Just <$> parseParam (last params))
       where
         method = fromString $ symbolVal (Proxy :: Proxy method)
-    toCommand (ParsedCommand params) = Command method (renderParams params)
+    toCommand (ParsedCommand params extra) = Command method (renderParams params ++ toList (renderParam <$> extra))
       where
         method = fromString $ symbolVal (Proxy :: Proxy method)
 
@@ -71,69 +73,66 @@ instance IsParams '[] where
 instance (IsParam a, IsParams b) => IsParams (a ': b) where
     parseParams (x : xs) = (:-) <$> parseParam x <*> parseParams xs
     parseParams _ = Nothing
-    renderParams (x :- xs) = toList (renderParam x) ++ renderParams xs
+    renderParams (x :- xs) = renderParam x : renderParams xs
 
 
 class IsParam a where
     parseParam :: Bytes -> Maybe a
-    renderParam :: a -> Maybe Bytes
+    renderParam :: a -> Bytes
 
 instance IsParam ByteString where
     parseParam = Just
-    renderParam = Just
+    renderParam = id
+
+instance IsParam Void where
+    parseParam _ = Nothing
+    renderParam = absurd
 
 newtype CommaSep a = CommaSep [a]
     deriving (Read, Show)
 
 instance IsParam a => IsParam (CommaSep a) where
     parseParam = fmap CommaSep . traverse parseParam . B.split ','
-    renderParam (CommaSep xs) = Just $ B.intercalate "," $ mapMaybe renderParam xs
-
-instance IsParam a => IsParam (Maybe a) where
-    parseParam "" = Just Nothing
-    parseParam x = Just <$> parseParam x
-    renderParam x = x >>= renderParam
+    renderParam (CommaSep xs) = B.intercalate "," $ map renderParam xs
 
 
 type Bytes = ByteString
 
 
-pattern Join :: [Bytes] -> [Bytes] -> ParsedCommand "JOIN" '[CommaSep Bytes, Maybe (CommaSep Bytes)]
+pattern Join :: [Bytes] -> [Bytes] -> ParsedCommand "JOIN" '[CommaSep Bytes] (CommaSep Bytes)
 pattern Join channels keys <-
-    ParsedCommand (
-        CommaSep channels :-
+    ParsedCommand (CommaSep channels :- Nil)
         ((\keys' -> case keys' of
             Just (CommaSep xs) -> xs
             Nothing -> []
-        ) -> keys) :-
-        Nil)
+        ) -> keys)
   where
-    Join channels keys = ParsedCommand (CommaSep channels :- packKeys keys :- Nil)
+    Join channels keys = ParsedCommand (CommaSep channels :- Nil) (packKeys keys)
       where
         packKeys [] = Nothing
         packKeys xs = Just (CommaSep xs)
 
-pattern Nick :: Bytes -> ParsedCommand "NICK" '[Bytes]
-pattern Nick nick = ParsedCommand (nick :- Nil)
+pattern Nick :: Bytes -> ParsedCommand "NICK" '[Bytes] Void
+pattern Nick nick = ParsedCommand (nick :- Nil) Nothing
 
-pattern Notice :: [Bytes] -> Bytes -> ParsedCommand "NOTICE" '[CommaSep Bytes, Bytes]
-pattern Notice targets message = ParsedCommand (CommaSep targets :- message :- Nil)
+pattern Notice :: [Bytes] -> Bytes -> ParsedCommand "NOTICE" '[CommaSep Bytes, Bytes] Void
+pattern Notice targets message = ParsedCommand (CommaSep targets :- message :- Nil) Nothing
 
-pattern Pass :: Bytes -> ParsedCommand "PASS" '[Bytes]
-pattern Pass pass = ParsedCommand (pass :- Nil)
+pattern Pass :: Bytes -> ParsedCommand "PASS" '[Bytes] Void
+pattern Pass pass = ParsedCommand (pass :- Nil) Nothing
 
-pattern Ping :: Bytes -> Maybe Bytes -> ParsedCommand "PING" '[Bytes, Maybe Bytes]
-pattern Ping server1 server2 = ParsedCommand (server1 :- server2 :- Nil)
+pattern Ping :: Bytes -> Maybe Bytes -> ParsedCommand "PING" '[Bytes] Bytes
+pattern Ping server1 server2 = ParsedCommand (server1 :- Nil) server2
 
-pattern Pong :: Bytes -> Maybe Bytes -> ParsedCommand "PONG" '[Bytes, Maybe Bytes]
-pattern Pong server1 server2 = ParsedCommand (server1 :- server2 :- Nil)
+pattern Pong :: Bytes -> Maybe Bytes -> ParsedCommand "PONG" '[Bytes] Bytes
+pattern Pong server1 server2 = ParsedCommand (server1 :- Nil) server2
 
-pattern PrivMsg :: [Bytes] -> Bytes -> ParsedCommand "PRIVMSG" '[CommaSep Bytes, Bytes]
-pattern PrivMsg targets message = ParsedCommand (CommaSep targets :- message :- Nil)
+pattern PrivMsg :: [Bytes] -> Bytes -> ParsedCommand "PRIVMSG" '[CommaSep Bytes, Bytes] Void
+pattern PrivMsg targets message = ParsedCommand (CommaSep targets :- message :- Nil) Nothing
 
-pattern Quit :: Maybe Bytes -> ParsedCommand "QUIT" '[Maybe Bytes]
-pattern Quit message = ParsedCommand (message :- Nil)
+pattern Quit :: Maybe Bytes -> ParsedCommand "QUIT" '[] Bytes
+pattern Quit message = ParsedCommand Nil Message
 
-pattern User :: Bytes -> Bytes -> ParsedCommand "USER" '[Bytes, Bytes, Bytes, Bytes]
-pattern User user realname <- ParsedCommand (user :- _ :- _ :- realname :- Nil) where
-    User user realname = ParsedCommand (user :- "0" :- "*" :- realname :- Nil)
+pattern User :: Bytes -> Bytes -> ParsedCommand "USER" '[Bytes, Bytes, Bytes, Bytes] Void
+pattern User user realname <- ParsedCommand (user :- _ :- _ :- realname :- Nil) Nothing where
+    User user realname = ParsedCommand (user :- "0" :- "*" :- realname :- Nil) Nothing
