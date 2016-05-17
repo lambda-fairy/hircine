@@ -42,6 +42,7 @@ instance IsCommand Command where
 
 
 newtype ParsedCommand (method :: Symbol) params = ParsedCommand params
+    deriving Show
 
 instance forall method params. (KnownSymbol method, IsParams params) => IsCommand (ParsedCommand method params) where
     fromCommand (Command method' params')
@@ -93,8 +94,12 @@ instance IsParams ByteString where
     parseParams = StateT uncons
     renderParams x = [x]
 
-newtype CommaSep a = CommaSep { unCommaSep :: [a] }
-    deriving (Read, Show)
+newtype CommaSep a = CommaSep [a]
+    deriving Show
+
+-- Written separately to make the Show instance prettier
+unCommaSep :: CommaSep a -> [a]
+unCommaSep (CommaSep a) = a
 
 instance IsParams a => IsParams (CommaSep a) where
     parseParams = do
