@@ -43,7 +43,7 @@ module Hircine.Command (
 
 
 import Control.Applicative
-import Control.Monad.Trans.State
+import Control.Monad.Trans.State.Strict
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
 import Data.List
