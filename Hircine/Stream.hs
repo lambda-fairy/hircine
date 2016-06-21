@@ -43,15 +43,19 @@ makeStream get put = Stream {
 
 
 parseMessages :: IO ByteString -> IO (Maybe Message)
-parseMessages get = do
-    r <- try get
-    case r of
-        Left e | isEOFError e -> return Nothing
-        Left e -> throwIO e
-        Right s -> case parseMessage $ stripCRLF s of
-            Left _ -> error $ "parseMessages: invalid message: " ++ show s
-            Right m -> return $ Just m
+parseMessages get = loop
   where
+    loop = do
+        r <- try get
+        case r of
+            Left e | isEOFError e -> return Nothing
+            Left e -> throwIO e
+            Right s -> case stripCRLF s of
+                "" -> loop
+                s' -> case parseMessage s' of
+                    Left _ -> error $ "parseMessages: invalid message: " ++ show s
+                    Right m -> return $ Just m
+
     stripCRLF = fst . B.spanEnd (\c -> c == 10 || c == 13)
 
 
