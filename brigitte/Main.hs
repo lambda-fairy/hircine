@@ -49,6 +49,7 @@ main = do
         connectionUseSecure = Just def,
         connectionUseSocks = Nothing
         }
+    putStrLn "Connecting..."
     connect context params $ \conn -> do
         putStrLn $ "Connected to " ++ show (connectionID conn)
         let stream = makeStream
