@@ -62,7 +62,7 @@ executable brigitte
             hircine,
             http-client,
             http-client-tls,
-            mtl,
+            http-types,
             text,
             transformers,
             unix,

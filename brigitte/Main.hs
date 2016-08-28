@@ -18,6 +18,7 @@ import qualified Data.Text.Encoding as Text
 import Network.Connection
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
+import Network.HTTP.Types.Status
 import System.Posix.Env.ByteString
 import System.Remote.Monitoring
 import System.IO
@@ -56,7 +57,7 @@ main = do
                 (connectionGetLine 1024 conn)
                 (connectionPut conn)
         runHircine (logMessages $ bot channel secret crateMap man) stream
-            `finally` putStrLn "Closing"
+            `finally` putStrLn "Au revoir"
 
 
 bot :: ByteString -> ByteString -> IORef CrateMap -> Manager -> Hircine ()
@@ -85,15 +86,12 @@ bot channel secret crateMap man = do
 checkNewCrates :: ByteString -> IORef CrateMap -> Manager -> Hircine ()
 checkNewCrates channel crateMap man = forever $ do
     changedCrates <- liftIO $ do
-        initReq <- parseUrl "https://crates.io/summary"
-        let req = initReq {
-            requestHeaders = ("User-Agent", userAgent) : requestHeaders initReq
-            }
         r <- try $ httpLbs req man
         case r of
-            Left e -> do
-                putStrLn $ "** ERROR: " ++ show (e :: HttpException)
-                return []
+            Left e ->
+                printError (e :: HttpException) >> return []
+            Right r' | not . statusIsSuccessful $ responseStatus r' ->
+                printError (responseStatus r') >> return []
             Right r' ->
                 let maybeJson = decode $ responseBody r'
                     crates = extractCrates =<< toList maybeJson
@@ -102,6 +100,12 @@ checkNewCrates channel crateMap man = forever $ do
         send . PrivMsg [channel] . Text.encodeUtf8 . showCrate
     liftIO . threadDelay $ 60 * 1000 * 1000  -- 60 seconds
   where
+    req :: Request
+    req = "https://crates.io/summary" { requestHeaders = [("User-Agent", userAgent)] }
+
+    printError :: Show a => a -> IO ()
+    printError e = putStrLn $ "** ERROR: " ++ show e
+
     extractCrates :: Value -> [Crate]
     extractCrates (Object v) = [ crate |
         Array justUpdated <- toList $ HashMap.lookup "just_updated" v,
