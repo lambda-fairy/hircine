@@ -89,7 +89,7 @@ checkNewCrates channel crateMap man = forever $ do
         r <- try $ httpLbs req man
         case r of
             Left e ->
-                printError (e :: HttpException) >> return []
+                printError (e :: SomeException) >> return []
             Right r' | not . statusIsSuccessful $ responseStatus r' ->
                 printError (responseStatus r') >> return []
             Right r' ->
