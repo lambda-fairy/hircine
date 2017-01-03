@@ -51,7 +51,7 @@ startBot params nick bot = do
     start channel secret man = do
         when (not $ BC.null secret) $ send $ Pass secret
         send $ Nick nick
-        send $ User nick "Bot managed by lfairy. Report issues to https://git.io/brigitte"
+        send $ User nick "Report issues to https://git.io/brigitte"
         bot channel man
 
 
