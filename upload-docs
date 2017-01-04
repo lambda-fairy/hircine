@@ -8,7 +8,7 @@ REPO_URL="$2"
 CIRCLE_YML="$(readlink -f circle.yml)"
 
 cabal haddock \
-    --hyperlink-source \
+    --haddock-option=--hyperlinked-source \
     --html-location='https://hackage.haskell.org/package/$pkg-$version/docs'
 
 git config --global user.email 'nobody@example.com'
