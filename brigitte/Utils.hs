@@ -4,12 +4,14 @@ module Utils where
 
 import Control.Exception
 import Control.Monad
-import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as BL
 import Data.Foldable
+import Data.Text (Text)
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import Network.Connection
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
@@ -71,8 +73,8 @@ logMessages = local $ \s -> s
     }
 
 
-makeHttpRequest :: String -> Manager -> Hircine (Maybe BL.ByteString)
-makeHttpRequest url man = liftIO $ do
+makeHttpRequest :: String -> Manager -> IO (Maybe BL.ByteString)
+makeHttpRequest url man = do
     r <- try $ httpLbs req man
     case r of
         Left e ->
@@ -90,3 +92,37 @@ makeHttpRequest url man = liftIO $ do
 getEnv' :: ByteString -> IO ByteString
 getEnv' name = getEnv name
     >>= maybe (error $ "missing environment variable " ++ show name) return
+
+
+data Crate = Crate
+    { crateName :: !Text
+    , crateVersion :: !Text
+    , crateDescription :: !Text
+    } deriving (Eq, Show)
+
+
+type CrateMap = Map Text (Text, Text)
+
+defaultCrateMap :: CrateMap
+defaultCrateMap = Map.empty
+
+-- | Update the internal crate map. Return the set of crates that were
+-- changed.
+updateCrateMap :: [Crate] -> CrateMap -> (CrateMap, [Crate])
+updateCrateMap newCrates' oldCrates = (newCrates, changedCrates)
+  where
+    newCrates = toCrateMap newCrates'
+    changedCrates
+        | Map.null oldCrates = []
+        | otherwise = fromCrateMap $ Map.differenceWith
+            (\new old -> if new /= old then Just new else Nothing)
+            newCrates oldCrates
+
+toCrateMap :: [Crate] -> CrateMap
+toCrateMap crates = Map.fromList
+    [ (crateName p, (crateVersion p, crateDescription p))
+    | p <- crates ]
+
+fromCrateMap :: CrateMap -> [Crate]
+fromCrateMap crates = [ Crate name vers desc |
+    (name, (vers, desc)) <- Map.toList crates ]
