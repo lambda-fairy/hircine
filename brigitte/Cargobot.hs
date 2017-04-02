@@ -7,6 +7,7 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Data.Aeson
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Lazy as BL
 import Data.Char
 import Data.Default.Class
 import Data.Foldable
@@ -30,14 +31,8 @@ main = do
     startBot params "[cargobot]" $ \channel man -> forever $ do
         Message origin command <- receive
         return command
-            ? (\(Ping a b) -> send $ Pong a b)
-            ? (\(PrivMsg _ msg) ->
-                case origin of
-                    Just (FromUser nick _ _)
-                        | nick `elem` ["lfairy", "nrc"]
-                                && msg `elem` ["quit", "stop"] ->
-                            send $ Quit (Just $ "kicked by " <> nick)
-                    _ -> return () )
+            ? handlePing
+            ? handleQuit (`elem` ["lfairy", "nrc"]) origin
             ? (\(Command code _) ->
                 when (code == "900") $ do
                     send $ Join [channel] Nothing
@@ -54,23 +49,21 @@ main = do
 
 checkNewCrates :: ByteString -> IORef CrateMap -> Manager -> Hircine ()
 checkNewCrates channel crateMap man = forever $ do
-    changedCrates <- liftIO $ do
-        maybeBytes <- makeHttpRequest "https://crates.io/summary" man
-        case maybeBytes of
-            Nothing -> return []
-            Just bytes ->
-                let crates = extractCrates =<< toList (decode bytes)
-                in  atomicModifyIORef' crateMap $ updateCrateMap crates
+    changedCrates <- liftIO $ fetchAndUpdateCrateMap feedUrl parseCrates crateMap man
     buffer . for_ changedCrates $
         send . PrivMsg [channel] . Text.encodeUtf8 . showCrate
     liftIO . threadDelay $ 60 * 1000 * 1000  -- 60 seconds
   where
-    extractCrates :: Value -> [Crate]
-    extractCrates (Object v) = [ crate |
-        Array justUpdated <- toList $ HashMap.lookup "just_updated" v,
-        Array newCrates <- toList $ HashMap.lookup "new_crates" v,
-        Success crate <- map fromJSON $ toList justUpdated ++ toList newCrates ]
-    extractCrates _ = []
+    feedUrl = "https://crates.io/summary"
+
+    parseCrates :: BL.ByteString -> Maybe [Crate]
+    parseCrates bytes
+        | Just (Object v) <- decode bytes
+        , Just (Array justUpdated) <- HashMap.lookup "just_updated" v
+        , Just (Array newCrates) <- HashMap.lookup "new_crates" v
+        , Success crates <- traverse fromJSON $ toList justUpdated ++ toList newCrates
+        = Just crates
+    parseCrates _ = Nothing
 
 
 instance FromJSON Crate where

@@ -9,6 +9,8 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as BL
 import Data.Foldable
+import Data.IORef
+import Data.Monoid
 import Data.Text (Text)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -94,6 +96,22 @@ getEnv' name = getEnv name
     >>= maybe (error $ "missing environment variable " ++ show name) return
 
 
+-- FIXME this looks icky
+handlePing :: Command -> Hircine ()
+handlePing = makeHandler $ \(Ping a b) -> send $ Pong a b
+
+handleQuit :: (ByteString -> Bool) -> Maybe Origin -> Command -> Hircine ()
+handleQuit isAdmin origin = makeHandler $ \(PrivMsg _ msg) ->
+    case origin of
+        Just (FromUser nick _ _)
+            | isAdmin nick && msg `elem` ["quit", "stop"] ->
+                send $ Quit (Just $ "kicked by " <> nick)
+        _ -> return ()
+
+makeHandler :: (Monad m, IsCommand a) => (a -> m ()) -> Command -> m ()
+makeHandler k = mapM_ k . fromCommand
+
+
 data Crate = Crate
     { crateName :: !Text
     , crateVersion :: !Text
@@ -106,8 +124,27 @@ type CrateMap = Map Text (Text, Text)
 defaultCrateMap :: CrateMap
 defaultCrateMap = Map.empty
 
--- | Update the internal crate map. Return the set of crates that were
--- changed.
+fetchAndUpdateCrateMap
+    :: String
+        -- ^ URL to package feed
+    -> (BL.ByteString -> Maybe [Crate])
+        -- ^ Function to parse crate data
+    -> IORef CrateMap
+    -> Manager
+    -> IO [Crate]
+fetchAndUpdateCrateMap feedUrl parseCrates crateMap man = do
+    maybeBytes <- makeHttpRequest feedUrl man
+    case maybeBytes of
+        Just bytes -> case parseCrates bytes of
+            Just crates -> atomicModifyIORef' crateMap $ updateCrateMap crates
+            Nothing -> do
+                putStrLn $ "** ERROR: could not parse packages!!!"
+                print bytes
+                return []
+        Nothing -> return []
+
+-- | Update the internal crate map. Return the set of crates that were changed.
+-- The list of changed crates is sorted in ascending order by name.
 updateCrateMap :: [Crate] -> CrateMap -> (CrateMap, [Crate])
 updateCrateMap newCrates' oldCrates = (newCrates, changedCrates)
   where
