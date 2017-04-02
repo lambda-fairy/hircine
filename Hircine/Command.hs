@@ -19,6 +19,7 @@ module Hircine.Command (
 
     -- * Command types
     pattern Join,
+    pattern Mode,
     pattern Nick,
     pattern Notice,
     pattern Pass,
@@ -123,6 +124,10 @@ class IsParams a where
     parseParams :: ParamParser a
     renderParams :: a -> [Bytes]
 
+instance IsParams a => IsParams [a] where
+    parseParams = many parseParams
+    renderParams = concatMap renderParams
+
 instance IsParams () where
     parseParams = pure ()
     renderParams _ = []
@@ -169,6 +174,9 @@ pattern Join :: [Bytes] -> Maybe [Bytes] -> ParsedCommand "JOIN" (CommaSep Bytes
 pattern Join channels keys <- ParsedCommand (CommaSep channels, fmap unCommaSep -> keys)
   where
     Join channels keys = ParsedCommand (CommaSep channels, CommaSep <$> keys)
+
+pattern Mode :: Bytes -> [Bytes] -> ParsedCommand "MODE" (Bytes, [Bytes])
+pattern Mode channelOrNick args = ParsedCommand (channelOrNick, args)
 
 pattern Nick :: Bytes -> ParsedCommand "NICK" Bytes
 pattern Nick nick = ParsedCommand nick
