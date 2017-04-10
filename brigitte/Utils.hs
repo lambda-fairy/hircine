@@ -41,15 +41,15 @@ startBot params nick bot = do
     ekgPort <- fmap (read . BC.unpack) <$> getEnv "BRIGITTE_EKG_PORT"
     for_ ekgPort $ \p -> do
         _ <- forkServer "localhost" p
-        putStrLn $ "Started EKG server on port " ++ show p
+        putStrLn $ "started EKG server on port " ++ show p
     man <- newManager tlsManagerSettings
     context <- initConnectionContext
-    putStrLn "Connecting..."
-    mainLoop channel secret man context `finally` putStrLn "Au revoir"
+    putStrLn "connecting..."
+    mainLoop channel secret man context `finally` putStrLn "au revoir"
   where
     mainLoop channel secret man context = forever $
         connect context params $ \conn -> do
-            putStrLn $ "Connected to " ++ show (connectionID conn)
+            putStrLn $ "connected to " ++ show (connectionID conn)
             let stream = makeStream
                     (connectionGetLine 1024 conn)
                     (connectionPut conn)
@@ -59,7 +59,7 @@ startBot params nick bot = do
     start channel secret man = do
         when (not $ BC.null secret) $ send $ Pass secret
         send $ Nick nick
-        send $ User nick "Report issues to https://git.io/brigitte"
+        send $ User nick "report issues to https://git.io/brigitte"
         bot channel man
 
 
