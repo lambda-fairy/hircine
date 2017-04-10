@@ -67,10 +67,10 @@ logMessages :: Hircine r -> Hircine r
 logMessages = local $ \s -> s
     { hsReceive = do
         m <- hsReceive s
-        putStrLn $ showMessage m
+        putStrLn $ "<- " ++ showMessage m
         return m
     , hsSend = \cs -> do
-        for_ cs $ \c -> putStrLn $ " -> " ++ showCommand c
+        for_ cs $ \c -> putStrLn $ "-> " ++ showCommand c
         hsSend s cs
     }
 
