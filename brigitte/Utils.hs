@@ -80,20 +80,24 @@ makeHttpRequest url man = do
     r <- try $ httpLbs req man
     case r of
         Left e ->
-            printError (e :: SomeException) >> return Nothing
+            printError' (e :: SomeException) >> return Nothing
         Right r' | not . statusIsSuccessful $ responseStatus r' ->
-            printError (responseStatus r') >> return Nothing
+            printError' (responseStatus r') >> return Nothing
         Right r' -> return $ Just (responseBody r')
   where
     req = (parseRequest_ url) { requestHeaders = [("User-Agent", userAgent)] }
-
-    printError :: Show a => a -> IO ()
-    printError e = putStrLn $ "** ERROR: " ++ show e
 
 
 getEnv' :: ByteString -> IO ByteString
 getEnv' name = getEnv name
     >>= maybe (error $ "missing environment variable " ++ show name) return
+
+
+printError :: String -> IO ()
+printError = putStrLn . ("** ERROR: " ++)
+
+printError' :: Show a => a -> IO ()
+printError' = printError . show
 
 
 -- FIXME this looks icky
@@ -138,7 +142,7 @@ fetchAndUpdateCrateMap feedUrl parseCrates crateMap man = do
         Just bytes -> case parseCrates bytes of
             Just crates -> atomicModifyIORef' crateMap $ updateCrateMap crates
             Nothing -> do
-                putStrLn $ "** ERROR: could not parse packages!!!"
+                printError "could not parse packages!!!"
                 print bytes
                 return []
         Nothing -> return []
