@@ -21,6 +21,7 @@ import Network.HTTP.Types.Status
 import System.Posix.Env.ByteString
 import System.Remote.Monitoring
 import System.IO
+import System.IO.Error
 
 import Hircine
 
@@ -44,14 +45,17 @@ startBot params nick bot = do
     man <- newManager tlsManagerSettings
     context <- initConnectionContext
     putStrLn "Connecting..."
-    connect context params $ \conn -> do
-        putStrLn $ "Connected to " ++ show (connectionID conn)
-        let stream = makeStream
-                (connectionGetLine 1024 conn)
-                (connectionPut conn)
-        runHircine (logMessages $ start channel secret man) stream
-            `finally` putStrLn "Au revoir"
+    mainLoop channel secret man context `finally` putStrLn "Au revoir"
   where
+    mainLoop channel secret man context = forever $
+        connect context params $ \conn -> do
+            putStrLn $ "Connected to " ++ show (connectionID conn)
+            let stream = makeStream
+                    (connectionGetLine 1024 conn)
+                    (connectionPut conn)
+            ignoreConnectionReset $
+                runHircine (logMessages $ start channel secret man) stream
+
     start channel secret man = do
         when (not $ BC.null secret) $ send $ Pass secret
         send $ Nick nick
@@ -73,6 +77,12 @@ logMessages = local $ \s -> s
         for_ cs $ \c -> putStrLn $ "-> " ++ showCommand c
         hsSend s cs
     }
+
+
+ignoreConnectionReset :: IO () -> IO ()
+ignoreConnectionReset = handleJust
+    (\e -> if show (ioeGetErrorType e) == "resource vanished" then Just () else Nothing)
+    (\_ -> printError "connection lost 😭😭😭!!! retrying...")
 
 
 makeHttpRequest :: String -> Manager -> IO (Maybe BL.ByteString)
