@@ -1,0 +1,13 @@
+[Unit]
+Description=Cargobot
+After=network.target
+
+[Service]
+ExecStart=/srv/hircine/dist/build/cargobot/cargobot
+EnvironmentFile=/etc/environment
+EnvironmentFile=/srv/hircine/brigitte/cargobot.env
+WorkingDirectory=/srv/hircine
+User=chris
+
+[Install]
+WantedBy=multi-user.target

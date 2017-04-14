@@ -1,0 +1,13 @@
+[Unit]
+Description=Hackagebot
+After=network.target
+
+[Service]
+ExecStart=/srv/hircine/dist/build/hackagebot/hackagebot
+EnvironmentFile=/etc/environment
+EnvironmentFile=/srv/hircine/brigitte/hackagebot.env
+WorkingDirectory=/srv/hircine
+User=chris
+
+[Install]
+WantedBy=multi-user.target

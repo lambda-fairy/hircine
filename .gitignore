@@ -8,5 +8,4 @@ cabal-dev
 *.chs.h
 .virthualenv
 
-scripts/
-state/
+*.env
