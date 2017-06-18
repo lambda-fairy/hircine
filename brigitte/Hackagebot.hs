@@ -41,7 +41,6 @@ main = do
                     send $ Join [channel] Nothing
                     _ <- fork . liftIO $ checkNewCrates crateMap newCrates man
                     _ <- fork $ notifyNewCrates newCrates channelIdle channel
-                    send $ PrivMsg [channel] "\x01\&ACTION Hello, world!\x01"
                     return () )
             ? (\(PrivMsg targets _) ->
                 when (channel `elem` targets) $ liftIO $ do
@@ -100,7 +99,8 @@ notifyNewCrates newCrates channelIdle channel = start
                 loop currentTime' notifyTime cratesToSend
             else do
                 messages <- liftIO $ summarizeCrates <$> readIORef cratesToSend
-                buffer . for_ messages $ send . PrivMsg [channel] . Text.encodeUtf8
+                buffer . for_ messages $
+                    send . PrivMsg [channel] . Text.encodeUtf8 . meify
                 start
 
 
@@ -140,6 +140,10 @@ channelIdleDelay = TimeSpec { sec = 60, nsec = 0 }
 
 notifyDelay :: TimeSpec
 notifyDelay = TimeSpec { sec = 5 * 60, nsec = 0 }
+
+
+meify :: Text -> Text
+meify text = "\x01\&ACTION " <> text <> "\x01"
 
 
 getMonotonicTime :: IO TimeSpec
