@@ -8,10 +8,12 @@ import Control.Monad.Trans.Reader
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as BL
+import Data.Char
 import Data.Foldable
 import Data.IORef
 import Data.Monoid
 import Data.Text (Text)
+import qualified Data.Text as Text
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Network.Connection
@@ -177,3 +179,25 @@ toCrateMap crates = Map.fromList
 fromCrateMap :: CrateMap -> [Crate]
 fromCrateMap crates = [ Crate name vers desc |
     (name, (vers, desc)) <- Map.toList crates ]
+
+
+showCrate :: Text -> Crate -> Text
+showCrate baseUrl p = Text.intercalate " – "
+    [ showCrateNameVersion p
+    , clipTo 80 . collapseSpaces $ crateDescription p
+    , baseUrl <> crateName p
+    ]
+  where
+    clipTo :: Int -> Text -> Text
+    clipTo n s
+        | Text.length s <= n = s
+        | otherwise =
+            (Text.dropWhileEnd isSpace . Text.dropWhileEnd (not . isSpace) $
+                Text.take (n + 1) s)
+            <> "…"
+
+    collapseSpaces :: Text -> Text
+    collapseSpaces = Text.unwords . Text.words
+
+showCrateNameVersion :: Crate -> Text
+showCrateNameVersion p = crateName p <> " " <> crateVersion p

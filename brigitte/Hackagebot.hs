@@ -6,8 +6,13 @@ import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
 import Data.Default.Class
 import Data.Foldable
+import Data.Function
+import Data.List
+import Data.Monoid
 import Data.IORef
+import Data.Text (Text)
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import Network.Connection
 import Network.HTTP.Client
 import System.Clock
@@ -35,7 +40,7 @@ main = do
                 when (nick == myNick) $ do
                     send $ Join [channel] Nothing
                     _ <- fork . liftIO $ checkNewCrates crateMap newCrates man
-                    _ <- fork . liftIO $ notifyNewCrates newCrates channelIdle channel
+                    _ <- fork $ notifyNewCrates newCrates channelIdle channel
                     send $ PrivMsg [channel] "\x01\&ACTION Hello, world!\x01"
                     return () )
             ? (\(PrivMsg targets _) ->
@@ -72,31 +77,62 @@ checkNewCrates crateMap newCrates man = forever $ do
         | otherwise = Nothing
 
 
-notifyNewCrates :: Chan Crate -> IORef TimeSpec -> ByteString -> IO ()
-notifyNewCrates newCrates channelIdle _channel = start
+notifyNewCrates :: Chan Crate -> IORef TimeSpec -> ByteString -> Hircine ()
+notifyNewCrates newCrates channelIdle channel = start
   where
     start = do
-        firstCrate <- readChan newCrates
-        cratesToSend <- newIORef [firstCrate]
-        startTime <- getMonotonicTime
+        firstCrate <- liftIO $ readChan newCrates
+        cratesToSend <- liftIO $ newIORef [firstCrate]
+        startTime <- liftIO getMonotonicTime
         loop startTime (startTime + notifyDelay) cratesToSend
 
     loop currentTime notifyTime cratesToSend = do
-        channelIdleTime <- readIORef channelIdle
+        channelIdleTime <- liftIO $ readIORef channelIdle
         let timeToWait = toMicroSecs $ max notifyTime channelIdleTime - currentTime
         if timeToWait > 0
             then do
-                _ <- timeout timeToWait $ forever $ do
+                _ <- liftIO $ timeout timeToWait $ forever $ do
                     crate <- readChan newCrates
                     -- IORef operations are not interruptible, so there is no
                     -- threat of data loss here
                     modifyIORef' cratesToSend (crate :)
-                currentTime' <- getMonotonicTime
+                currentTime' <- liftIO getMonotonicTime
                 loop currentTime' notifyTime cratesToSend
             else do
-                crates <- reverse <$> readIORef cratesToSend
-                for_ crates print  -- TODO
+                messages <- liftIO $ summarizeCrates <$> readIORef cratesToSend
+                buffer . for_ messages $ send . PrivMsg [channel] . Text.encodeUtf8
                 start
+
+
+summarizeCrates :: [Crate] -> [Text]
+summarizeCrates crates
+    | length crates < 3 = showIndividually crates  -- <3
+    | otherwise = showCompactly crates
+  where
+    showIndividually = map (showCrate baseUrl)
+    baseUrl = "https://hackage.haskell.org/package/"
+
+    showCompactly = showCompactly' . splitAt 4 . shuffleCrates
+    showCompactly' (former, latter) = [firstLine, secondLine]
+      where
+        firstLine = Text.intercalate ", " $
+            map showCrateNameVersion former ++ andMore
+        andMore
+            | null latter = []
+            | otherwise = ["… and " <> Text.pack (show (length latter)) <> " more"]
+        secondLine = " → https://hackage.haskell.org/packages/recent"
+
+
+-- | Shuffle the list of packages such that those with similar names are spaced
+-- farther apart.
+--
+-- This avoids the \"amazonka problem\", where a flurry of published packages
+-- from a single framework ends up crowding out independent ones.
+shuffleCrates :: [Crate] -> [Crate]
+shuffleCrates
+    = concat . transpose . groupBy ((==) `on` crateFamily) . sortOn crateName
+  where
+    crateFamily = Text.takeWhile (/= '-') . crateName
 
 
 channelIdleDelay :: TimeSpec

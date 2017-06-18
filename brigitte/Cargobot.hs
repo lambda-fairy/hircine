@@ -8,14 +8,10 @@ import Control.Monad.IO.Class
 import Data.Aeson
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as BL
-import Data.Char
 import Data.Default.Class
 import Data.Foldable
 import qualified Data.HashMap.Strict as HashMap
 import Data.IORef
-import Data.Monoid
-import Data.Text (Text)
-import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Network.Connection
 import Network.HTTP.Client
@@ -51,10 +47,11 @@ checkNewCrates :: ByteString -> IORef CrateMap -> Manager -> Hircine ()
 checkNewCrates channel crateMap man = forever $ do
     changedCrates <- liftIO $ fetchAndUpdateCrateMap feedUrl parseCrates crateMap man
     buffer . for_ changedCrates $
-        send . PrivMsg [channel] . Text.encodeUtf8 . showCrate
+        send . PrivMsg [channel] . Text.encodeUtf8 . showCrate baseUrl
     liftIO . threadDelay $ 60 * 1000 * 1000  -- 60 seconds
   where
     feedUrl = "https://crates.io/summary"
+    baseUrl = "https://crates.io/crates/"
 
     parseCrates :: BL.ByteString -> Maybe [Crate]
     parseCrates bytes
@@ -72,21 +69,3 @@ instance FromJSON Crate where
         <*> v .: "max_version"
         <*> v .: "description"
     parseJSON _ = empty
-
-showCrate :: Crate -> Text
-showCrate p = Text.intercalate " – "
-    [ crateName p <> " " <> crateVersion p
-    , clipTo 80 . collapseSpaces $ crateDescription p
-    , "https://crates.io/crates/" <> crateName p
-    ]
-  where
-    clipTo :: Int -> Text -> Text
-    clipTo n s
-        | Text.length s <= n = s
-        | otherwise =
-            (Text.dropWhileEnd isSpace . Text.dropWhileEnd (not . isSpace) $
-                Text.take (n + 1) s)
-            <> "…"
-
-    collapseSpaces :: Text -> Text
-    collapseSpaces = Text.unwords . Text.words
