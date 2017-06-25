@@ -94,7 +94,7 @@ notifyNewCrates newCrates channelIdle channel = start
                     crate <- readChan newCrates
                     -- IORef operations are not interruptible, so there is no
                     -- threat of data loss here
-                    modifyIORef' cratesToSend (crate :)
+                    modifyIORef' cratesToSend (crate :)  -- :)
                 currentTime' <- liftIO getMonotonicTime
                 loop currentTime' notifyTime cratesToSend
             else do
