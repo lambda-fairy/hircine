@@ -174,7 +174,10 @@ updateCrateMap newCrates' oldCrates = (newCrates, changedCrates)
 toCrateMap :: [Crate] -> CrateMap
 toCrateMap crates = Map.fromList
     [ (crateName p, (crateVersion p, crateDescription p))
-    | p <- crates ]
+    -- Map.fromList takes the last value in case of duplicates, but in a
+    -- chronological feed we usually want the first value instead. Reversing
+    -- the input list should mitigate this issue.
+    | p <- reverse crates ]
 
 fromCrateMap :: CrateMap -> [Crate]
 fromCrateMap crates = [ Crate name vers desc |
