@@ -4,7 +4,6 @@ module Hircine.Monad (
 
     -- * Types
     Hircine,
-    HircineState(..),
 
     -- * Operations
     receive,
@@ -19,10 +18,7 @@ module Hircine.Monad (
 
 
 import Control.Concurrent
-import Control.Exception (bracket)
 import Control.Monad.Trans.Reader
-import Data.Foldable
-import Data.Function (fix)
 import Data.IORef
 import qualified SlaveThread
 
@@ -31,21 +27,16 @@ import Hircine.Command
 import Hircine.Stream
 
 
-type Hircine = ReaderT HircineState IO
-
-data HircineState = HircineState {
-    hsReceive :: IO Message,
-    hsSend :: [Command] -> IO ()
-    }
+type Hircine = ReaderT Stream IO
 
 
 -- | Receive a single IRC message from the server.
 receive :: Hircine Message
-receive = ReaderT hsReceive
+receive = ReaderT streamReceive
 
 -- | Send an IRC command to the server.
 send :: IsCommand c => c -> Hircine ()
-send c = ReaderT $ \s -> hsSend s [toCommand c]
+send c = ReaderT $ \s -> streamSend s [toCommand c]
 
 -- | Buffer up the inner 'send' calls, so that all the commands are sent
 -- in one go.
@@ -53,7 +44,7 @@ buffer :: Hircine a -> Hircine a
 buffer h = ReaderT $ \s -> do
     buf <- newIORef []
     r <- runReaderT h s {
-        hsSend = \cs ->
+        streamSend = \cs ->
             atomicModifyIORef' buf $ \css ->
                 css `seq` (cs : css, ())
         }
@@ -62,7 +53,7 @@ buffer h = ReaderT $ \s -> do
     let cs = concat $ reverse css
     -- Perform the reversal *before* calling hsSend
     -- This minimizes the time spent in hsSend's critical section
-    cs `seq` hsSend s cs
+    cs `seq` streamSend s cs
     return r
 
 
@@ -73,18 +64,5 @@ fork :: Hircine () -> Hircine ThreadId
 fork h = ReaderT $ SlaveThread.fork . runReaderT h
 
 
-runHircine :: Hircine () -> Stream -> IO ()
-runHircine h s = do
-    sendLock <- newMVar ()
-    incoming <- newEmptyMVar
-    bracket
-        (forkIO $ runReaderT h HircineState {
-            hsReceive = takeMVar incoming,
-            hsSend = \cs -> withMVar sendLock $ \_ -> streamSend s cs
-            })
-        (\t -> takeMVar sendLock >> killThread t)
-        (\_ -> fix $ \loop -> do
-            m <- streamReceive s
-            for_ m $ \m' -> do
-                putMVar incoming m'
-                loop )
+runHircine :: Hircine a -> Stream -> IO a
+runHircine = runReaderT

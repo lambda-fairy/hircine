@@ -9,17 +9,15 @@ module Hircine.Stream (
     ) where
 
 
-import Control.Exception
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import System.IO
-import System.IO.Error
 
 import Hircine.Core
 
 
 data Stream = Stream {
-    streamReceive :: IO (Maybe Message),
+    streamReceive :: IO Message,
     streamSend :: [Command] -> IO ()
     }
 
@@ -42,19 +40,16 @@ makeStream get put = Stream {
     }
 
 
-parseMessages :: IO ByteString -> IO (Maybe Message)
+parseMessages :: IO ByteString -> IO Message
 parseMessages get = loop
   where
     loop = do
-        r <- try get
-        case r of
-            Left e | isEOFError e -> return Nothing
-            Left e -> throwIO e
-            Right s -> case stripCRLF s of
-                "" -> loop
-                s' -> case parseMessage s' of
-                    Left _ -> error $ "parseMessages: invalid message: " ++ show s
-                    Right m -> return $ Just m
+        s <- get
+        case stripCRLF s of
+            "" -> loop
+            s' -> case parseMessage s' of
+                Left _ -> error $ "parseMessages: invalid message: " ++ show s
+                Right m -> return m
 
     stripCRLF = fst . B.spanEnd (\c -> c == 10 || c == 13)
 

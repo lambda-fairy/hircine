@@ -71,13 +71,13 @@ connect context params = bracket (connectTo context params) connectionClose
 
 logMessages :: Hircine r -> Hircine r
 logMessages = local $ \s -> s
-    { hsReceive = do
-        m <- hsReceive s
+    { streamReceive = do
+        m <- streamReceive s
         putStrLn $ "<- " ++ showMessage m
         return m
-    , hsSend = \cs -> do
+    , streamSend = \cs -> do
         for_ cs $ \c -> putStrLn $ "-> " ++ showCommand c
-        hsSend s cs
+        streamSend s cs
     }
 
 
