@@ -34,7 +34,6 @@ library
         attoparsec,
         bytestring,
         network,
-        slave-thread,
         text,
         transformers
     default-language: Haskell2010
@@ -54,6 +53,7 @@ executable cargobot
         build-depends:
             base >= 4.8 && < 5,
             aeson,
+            async,
             bytestring,
             connection,
             containers,
@@ -63,6 +63,7 @@ executable cargobot
             http-client,
             http-client-tls,
             http-types,
+            kan-extensions,
             text,
             transformers,
             unix,
@@ -81,6 +82,7 @@ executable hackagebot
     else
         build-depends:
             base >= 4.8 && < 5,
+            async,
             bytestring,
             clock,
             connection,
@@ -92,6 +94,7 @@ executable hackagebot
             http-client,
             http-client-tls,
             http-types,
+            kan-extensions,
             text,
             transformers,
             unix,

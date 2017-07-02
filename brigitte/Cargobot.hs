@@ -24,16 +24,9 @@ import Utils
 main :: IO ()
 main = do
     crateMap <- newIORef defaultCrateMap
-    startBot params "[cargobot]" $ \channel man -> forever $ do
-        Message origin command <- receive
-        return command
-            ? handlePing
-            ? handleQuit (`elem` ["lfairy", "nrc"]) origin
-            ? (\(Command code _) ->
-                when (code == "900") $ do
-                    send $ Join [channel] Nothing
-                    _ <- fork $ checkNewCrates channel crateMap man
-                    return () )
+    startBot params "[cargobot]" $ \channel man -> do
+        fork $ checkNewCrates channel crateMap man
+        return nullAcceptor
   where
     params = ConnectionParams
         { connectionHostname = "irc.mozilla.org"

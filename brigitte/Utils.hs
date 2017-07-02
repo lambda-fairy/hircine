@@ -1,9 +1,11 @@
-{-# LANGUAGE OverloadedStrings, RankNTypes #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Utils where
 
+import Control.Concurrent.Async
 import Control.Exception
 import Control.Monad
+import Control.Monad.Codensity
 import Control.Monad.Trans.Reader
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as BC
@@ -35,8 +37,8 @@ userAgent = "Brigitte (https://git.io/brigitte)"
 startBot
     :: ConnectionParams
     -> ByteString  -- ^ Nick
-    -> (forall r. ByteString -> Manager -> Hircine r) -> IO ()
-startBot params nick bot = do
+    -> (ByteString -> Manager -> Codensity Hircine Acceptor) -> IO ()
+startBot params nick withBot = do
     hSetBuffering stdout LineBuffering
     channel <- getEnv' "BRIGITTE_CHANNEL"
     secret <- getEnv' "BRIGITTE_SECRET"
@@ -62,7 +64,10 @@ startBot params nick bot = do
         when (not $ BC.null secret) $ send $ Pass secret
         send $ Nick nick
         send $ User nick "report bugs to https://git.io/hircine-issues"
-        bot channel man
+        send $ Join [channel] Nothing
+        runCodensity (withBot channel man) $ \bot ->
+            let respond = runReaderT $ replyToPing >> bot
+            in  forever $ receive >>= respond
 
 
 connect :: ConnectionContext -> ConnectionParams -> (Connection -> IO r) -> IO r
@@ -100,6 +105,14 @@ makeHttpRequest url man = do
     req = (parseRequest_ url) { requestHeaders = [("User-Agent", userAgent)] }
 
 
+fork :: Hircine () -> Codensity Hircine ()
+fork h = Codensity $ \k ->
+    ReaderT $ \s ->
+        withAsync (runReaderT h s) $ \h' -> do
+            link h'
+            runReaderT (k ()) s
+
+
 getEnv' :: ByteString -> IO ByteString
 getEnv' name = getEnv name
     >>= maybe (error $ "missing environment variable " ++ show name) return
@@ -112,20 +125,20 @@ printError' :: Show a => a -> IO ()
 printError' = printError . show
 
 
--- FIXME this looks icky
-handlePing :: Command -> Hircine ()
-handlePing = makeHandler $ \(Ping a b) -> send $ Pong a b
+type Acceptor = ReaderT Message Hircine ()
 
-handleQuit :: (ByteString -> Bool) -> Maybe Origin -> Command -> Hircine ()
-handleQuit isAdmin origin = makeHandler $ \(PrivMsg _ msg) ->
-    case origin of
-        Just (FromUser nick _ _)
-            | isAdmin nick && msg `elem` ["quit", "stop"] ->
-                send $ Quit (Just $ "kicked by " <> nick)
-        _ -> return ()
+nullAcceptor :: Acceptor
+nullAcceptor = return ()
 
-makeHandler :: (Monad m, IsCommand a) => (a -> m ()) -> Command -> m ()
-makeHandler k = mapM_ k . fromCommand
+replyToPing :: Acceptor
+replyToPing = accept $ \(Ping a b) -> send $ Pong a b
+
+accept :: IsCommand a => (a -> Hircine ()) -> Acceptor
+accept = accept' . const
+
+accept' :: IsCommand a => (Maybe Origin -> a -> Hircine ()) -> Acceptor
+accept' k = ReaderT $ \(Message origin command) ->
+    mapM_ (k origin) $ fromCommand command
 
 
 data Crate = Crate

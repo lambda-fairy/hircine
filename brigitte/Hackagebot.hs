@@ -31,21 +31,14 @@ main = do
     crateMap <- newIORef defaultCrateMap
     channelIdle <- newIORef =<< getMonotonicTime
     newCrates <- newChan
-    startBot params myNick $ \channel man -> forever $ do
-        Message origin command <- receive
-        return command
-            ? handlePing
-            ? handleQuit (== "lfairy") origin
-            ? (\(Mode nick _) ->
-                when (nick == myNick) $ do
-                    send $ Join [channel] Nothing
-                    _ <- fork . liftIO $ checkNewCrates crateMap newCrates man
-                    _ <- fork $ notifyNewCrates newCrates channelIdle channel
-                    return () )
-            ? (\(PrivMsg targets _) ->
+    startBot params myNick $ \channel man -> do
+        fork . liftIO $ checkNewCrates crateMap newCrates man
+        fork $ notifyNewCrates newCrates channelIdle channel
+        return $ do
+            accept $ \(PrivMsg targets _) ->
                 when (channel `elem` targets) $ liftIO $ do
                     currentTime <- getMonotonicTime
-                    atomicWriteIORef channelIdle $! currentTime + channelIdleDelay )
+                    atomicWriteIORef channelIdle $! currentTime + channelIdleDelay
   where
     myNick = "hackagebot"
     params = ConnectionParams

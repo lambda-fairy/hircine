@@ -13,7 +13,6 @@
 module Hircine.Command (
 
     -- * Parsing and un-parsing commands
-    (?),
     IsCommand(..),
     Bytes,
 
@@ -59,33 +58,6 @@ import Hircine.Core
 class IsCommand a where
     fromCommand :: Command -> Maybe a
     toCommand :: a -> Command
-
-
--- | Handle a command.
---
--- @m ? k@ attempts to parse the command contained in @m@. If
--- successful, it calls @k@ with the parsed result. Otherwise, the
--- callback is ignored. Either way, the original command is returned
--- unchanged.
---
--- This operator is designed to be chained, invoking a separate callback
--- for each command type. A typical bot would look like this:
---
--- @
--- return c
---     ? (\\(PrivMsg target message) -> ...)
---     ? (\\(Ping server1 server2) -> ...)
---     ...
--- @
---
--- This code will invoke the first callback when the incoming command is
--- a @PRIVMSG@, and the second when the command is a @PING@.
-(?) :: (Monad m, IsCommand a) => m Command -> (a -> m ()) -> m Command
-m ? k = do
-    c <- m
-    mapM_ k $ fromCommand c
-    return c
-infixl 2 ?
 
 
 instance IsCommand Command where
