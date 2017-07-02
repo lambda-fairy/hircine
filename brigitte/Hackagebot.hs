@@ -31,9 +31,10 @@ main = do
     crateMap <- newIORef defaultCrateMap
     channelIdle <- newIORef =<< getMonotonicTime
     newCrates <- newChan
+    cratesToSend <- newIORef []
     startBot params myNick $ \channel man -> do
         fork . liftIO $ checkNewCrates crateMap newCrates man
-        fork $ notifyNewCrates newCrates channelIdle channel
+        fork $ notifyNewCrates newCrates cratesToSend channelIdle channel
         return $ do
             accept $ \(PrivMsg targets _) ->
                 when (channel `elem` targets) $ liftIO $ do
@@ -69,16 +70,18 @@ checkNewCrates crateMap newCrates man = forever $ do
         | otherwise = Nothing
 
 
-notifyNewCrates :: Chan Crate -> IORef TimeSpec -> ByteString -> Hircine ()
-notifyNewCrates newCrates channelIdle channel = start
+notifyNewCrates :: Chan Crate -> IORef [Crate] -> IORef TimeSpec -> ByteString -> Hircine ()
+notifyNewCrates newCrates cratesToSend channelIdle channel = start
   where
     start = do
-        firstCrate <- liftIO $ readChan newCrates
-        cratesToSend <- liftIO $ newIORef [firstCrate]
+        leftovers <- liftIO $ readIORef cratesToSend
+        when (null leftovers) $ do
+            firstCrate <- liftIO $ readChan newCrates
+            liftIO $ writeIORef cratesToSend $! [firstCrate]
         startTime <- liftIO getMonotonicTime
-        loop startTime (startTime + notifyDelay) cratesToSend
+        loop startTime (startTime + notifyDelay)
 
-    loop currentTime notifyTime cratesToSend = do
+    loop currentTime notifyTime = do
         channelIdleTime <- liftIO $ readIORef channelIdle
         let timeToWait = toMicroSecs $ max notifyTime channelIdleTime - currentTime
         if timeToWait > 0
@@ -89,7 +92,7 @@ notifyNewCrates newCrates channelIdle channel = start
                     -- threat of data loss here
                     modifyIORef' cratesToSend (crate :)  -- :)
                 currentTime' <- liftIO getMonotonicTime
-                loop currentTime' notifyTime cratesToSend
+                loop currentTime' notifyTime
             else do
                 messages <- liftIO $ summarizeCrates <$> readIORef cratesToSend
                 buffer . for_ messages $
