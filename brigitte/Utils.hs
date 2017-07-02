@@ -2,10 +2,8 @@
 
 module Utils where
 
-import Control.Concurrent.Async
 import Control.Exception
 import Control.Monad
-import Control.Monad.Codensity
 import Control.Monad.Trans.Reader
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as BC
@@ -37,8 +35,8 @@ userAgent = "Brigitte (https://git.io/brigitte)"
 startBot
     :: ConnectionParams
     -> ByteString  -- ^ Nick
-    -> (ByteString -> Manager -> Codensity Hircine Acceptor) -> IO ()
-startBot params nick withBot = do
+    -> (ByteString -> Manager -> Hircine Acceptor) -> IO ()
+startBot params nick makeBot = do
     hSetBuffering stdout LineBuffering
     channel <- getEnv' "BRIGITTE_CHANNEL"
     secret <- getEnv' "BRIGITTE_SECRET"
@@ -64,10 +62,11 @@ startBot params nick withBot = do
         when (not $ BC.null secret) $ send $ Pass secret
         send $ Nick nick
         send $ User nick "report bugs to https://git.io/hircine-issues"
+        waitForWelcome
         send $ Join [channel] Nothing
-        runCodensity (withBot channel man) $ \bot ->
-            let respond = runReaderT $ replyToPing >> bot
-            in  forever $ receive >>= respond
+        bot <- makeBot channel man
+        let respond = runAcceptor $ replyToPing >> bot
+        forever $ receive >>= respond
 
 
 connect :: ConnectionContext -> ConnectionParams -> (Connection -> IO r) -> IO r
@@ -84,6 +83,14 @@ logMessages = local $ \s -> s
         for_ cs $ \c -> putStrLn $ "-> " ++ showCommand c
         streamSend s cs
     }
+
+
+waitForWelcome :: Hircine ()
+waitForWelcome = do
+    message@(Message _ (Command code _)) <- receive
+    when (code /= "001") $ do
+        runAcceptor replyToPing message
+        waitForWelcome
 
 
 ignoreConnectionReset :: IO () -> IO ()
@@ -105,14 +112,6 @@ makeHttpRequest url man = do
     req = (parseRequest_ url) { requestHeaders = [("User-Agent", userAgent)] }
 
 
-fork :: Hircine () -> Codensity Hircine ()
-fork h = Codensity $ \k ->
-    ReaderT $ \s ->
-        withAsync (runReaderT h s) $ \h' -> do
-            link h'
-            runReaderT (k ()) s
-
-
 getEnv' :: ByteString -> IO ByteString
 getEnv' name = getEnv name
     >>= maybe (error $ "missing environment variable " ++ show name) return
@@ -126,6 +125,9 @@ printError' = printError . show
 
 
 type Acceptor = ReaderT Message Hircine ()
+
+runAcceptor :: Acceptor -> Message -> Hircine ()
+runAcceptor = runReaderT
 
 nullAcceptor :: Acceptor
 nullAcceptor = return ()
