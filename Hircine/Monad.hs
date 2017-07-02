@@ -62,8 +62,8 @@ buffer h = ReaderT $ \s -> do
 -- | Run the inner action in a separate thread.
 --
 -- See the "SlaveThread" documentation for tips and caveats.
-fork :: Hircine () -> Hircine ThreadId
-fork h = ReaderT $ SlaveThread.fork . runReaderT h
+fork :: Hircine () -> Hircine ()
+fork h = ReaderT $ void . SlaveThread.fork . runReaderT h
 
 
 runHircine :: Hircine a -> Stream -> IO a
