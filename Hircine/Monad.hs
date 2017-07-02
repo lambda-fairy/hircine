@@ -18,6 +18,8 @@ module Hircine.Monad (
 
 
 import Control.Concurrent
+import Control.Exception
+import Control.Monad
 import Control.Monad.Trans.Reader
 import Data.IORef
 import qualified SlaveThread
@@ -65,4 +67,19 @@ fork h = ReaderT $ SlaveThread.fork . runReaderT h
 
 
 runHircine :: Hircine a -> Stream -> IO a
-runHircine = runReaderT
+runHircine h s = do
+    incoming <- newEmptyMVar
+    stopped <- newEmptyMVar
+    bracket
+        (forkFinally
+            (runReaderT h Stream {
+                streamReceive = takeThrowMVar incoming,
+                streamSend = streamSend s
+                })
+            (putMVar stopped))
+        (\_ -> takeThrowMVar stopped)
+        (\_ -> forever $ try (streamReceive s) >>= putMVar incoming)
+
+
+takeThrowMVar :: MVar (Either SomeException a) -> IO a
+takeThrowMVar = takeMVar >=> either throwIO return
