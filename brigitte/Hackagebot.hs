@@ -97,6 +97,7 @@ notifyNewCrates newCrates cratesToSend channelIdle channel = start
                 messages <- liftIO $ summarizeCrates <$> readIORef cratesToSend
                 buffer . for_ messages $
                     send . PrivMsg [channel] . Text.encodeUtf8 . meify
+                liftIO $ writeIORef cratesToSend $! []
                 start
 
 
