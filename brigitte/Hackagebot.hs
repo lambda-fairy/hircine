@@ -120,15 +120,26 @@ summarizeCrates crates
         secondLine = " → https://hackage.haskell.org/packages/recent"
 
 
--- | Shuffle the list of packages such that those with similar names are spaced
--- farther apart.
---
--- This avoids the \"amazonka problem\", where a flurry of published packages
--- from a single framework ends up crowding out independent ones.
 shuffleCrates :: [Crate] -> [Crate]
-shuffleCrates
-    = concat . transpose . groupBy ((==) `on` crateFamily) . sortOn crateName
+shuffleCrates = disperseSimilarCrates . sortAndRemoveDuplicates
   where
+    -- | Shuffle the list of packages such that those with similar names are
+    -- spaced farther apart.
+    --
+    -- This avoids the \"amazonka problem\", where a flurry of published
+    -- packages from a single framework ends up crowding out independent ones.
+    --
+    -- Note that because of the call to 'groupBy', this function expects its
+    -- input to be sorted by package name.
+    disperseSimilarCrates :: [Crate] -> [Crate]
+    disperseSimilarCrates = concat . transpose . groupBy ((==) `on` crateFamily)
+
+    -- | Sort a list of packages by name, and remove duplicate packages with the
+    -- same name.
+    sortAndRemoveDuplicates :: [Crate] -> [Crate]
+    sortAndRemoveDuplicates = map head . groupBy ((==) `on` crateName) . sortOn crateName
+
+    crateFamily :: Crate -> Text
     crateFamily = Text.takeWhile (/= '-') . crateName
 
 
