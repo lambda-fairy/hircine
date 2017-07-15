@@ -32,7 +32,7 @@ main = do
     channelIdle <- newIORef =<< getMonotonicTime
     newCrates <- newChan
     cratesToSend <- newIORef []
-    startBot params myNick $ \channel man -> do
+    startBot params $ \channel man -> do
         fork . liftIO $ checkNewCrates crateMap newCrates man
         fork $ notifyNewCrates newCrates cratesToSend channelIdle channel
         return $ do
@@ -41,7 +41,6 @@ main = do
                     currentTime <- getMonotonicTime
                     atomicWriteIORef channelIdle $! currentTime + channelIdleDelay
   where
-    myNick = "hackagebot"
     params = ConnectionParams
         { connectionHostname = "chat.freenode.net"
         , connectionPort = 6697

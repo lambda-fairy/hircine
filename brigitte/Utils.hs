@@ -34,11 +34,11 @@ userAgent = "Brigitte (https://git.io/brigitte)"
 
 startBot
     :: ConnectionParams
-    -> ByteString  -- ^ Nick
     -> (ByteString -> Manager -> Hircine Acceptor) -> IO ()
-startBot params nick makeBot = do
+startBot params makeBot = do
     hSetBuffering stdout LineBuffering
     channel <- getEnv' "BRIGITTE_CHANNEL"
+    nick <- getEnv' "BRIGITTE_NICK"
     secret <- getEnv' "BRIGITTE_SECRET"
     ekgPort <- fmap (read . BC.unpack) <$> getEnv "BRIGITTE_EKG_PORT"
     for_ ekgPort $ \p -> do
@@ -47,18 +47,18 @@ startBot params nick makeBot = do
     man <- newManager tlsManagerSettings
     context <- initConnectionContext
     putStrLn "connecting..."
-    mainLoop channel secret man context `finally` putStrLn "au revoir"
+    mainLoop channel nick secret man context `finally` putStrLn "au revoir"
   where
-    mainLoop channel secret man context = forever $
+    mainLoop channel nick secret man context = forever $
         connect context params $ \conn -> do
             putStrLn $ "connected to " ++ show (connectionID conn)
             let stream = makeStream
                     (connectionGetLine 1024 conn)
                     (connectionPut conn)
             ignoreConnectionReset $
-                runHircine (logMessages $ start channel secret man) stream
+                runHircine (logMessages $ start channel nick secret man) stream
 
-    start channel secret man = do
+    start channel nick secret man = do
         when (not $ BC.null secret) $ send $ Pass secret
         send $ Nick nick
         send $ User nick "report bugs to https://git.io/hircine-issues"

@@ -24,7 +24,7 @@ import Utils
 main :: IO ()
 main = do
     crateMap <- newIORef defaultCrateMap
-    startBot params "[cargobot]" $ \channel man -> do
+    startBot params $ \channel man -> do
         fork $ checkNewCrates channel crateMap man
         return nullAcceptor
   where
