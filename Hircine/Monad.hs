@@ -22,6 +22,7 @@ import Control.Exception
 import Control.Monad
 import Control.Monad.Trans.Reader
 import Data.IORef
+import Data.Void
 import qualified SlaveThread
 
 import Hircine.Core
@@ -66,18 +67,15 @@ fork :: Hircine () -> Hircine ()
 fork h = ReaderT $ void . SlaveThread.fork . runReaderT h
 
 
-runHircine :: Hircine a -> Stream -> IO a
+runHircine :: Hircine Void -> Stream -> IO a
 runHircine h s = do
     incoming <- newEmptyMVar
-    stopped <- newEmptyMVar
     bracket
-        (forkFinally
-            (runReaderT h Stream {
-                streamReceive = takeThrowMVar incoming,
-                streamSend = streamSend s
-                })
-            (putMVar stopped))
-        (\_ -> takeThrowMVar stopped)
+        (SlaveThread.fork $ runReaderT h Stream {
+            streamReceive = takeThrowMVar incoming,
+            streamSend = streamSend s
+            } >>= absurd)
+        killThread
         (\_ -> forever $ try (streamReceive s) >>= putMVar incoming)
 
 
