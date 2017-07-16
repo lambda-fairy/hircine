@@ -22,7 +22,6 @@ import Control.Exception
 import Control.Monad
 import Control.Monad.Trans.Reader
 import Data.IORef
-import Data.Void
 import qualified SlaveThread
 
 import Hircine.Core
@@ -67,16 +66,15 @@ fork :: Hircine () -> Hircine ()
 fork h = ReaderT $ void . SlaveThread.fork . runReaderT h
 
 
-runHircine :: Hircine Void -> Stream -> IO a
+runHircine :: Hircine a -> Stream -> IO a
 runHircine h s = do
-    incoming <- newEmptyMVar
+    stopped <- newEmptyMVar
+    -- Run the inner action in a separate thread, so that the lifetime of any
+    -- further slave threads are tied to that of the action itself.
     bracket
-        (SlaveThread.fork $ runReaderT h Stream {
-            streamReceive = takeThrowMVar incoming,
-            streamSend = streamSend s
-            } >>= absurd)
+        (forkFinally (runReaderT h s) (putMVar stopped))
         killThread
-        (\_ -> forever $ try (streamReceive s) >>= putMVar incoming)
+        (\_ -> takeThrowMVar stopped)
 
 
 takeThrowMVar :: MVar (Either SomeException a) -> IO a
