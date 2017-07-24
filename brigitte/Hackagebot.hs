@@ -151,10 +151,3 @@ notifyDelay = TimeSpec { sec = 5 * 60, nsec = 0 }
 
 meify :: Text -> Text
 meify text = "\x01\&ACTION " <> text <> "\x01"
-
-
-getMonotonicTime :: IO TimeSpec
-getMonotonicTime = getTime Monotonic
-
-toMicroSecs :: TimeSpec -> Int
-toMicroSecs = ceiling . (/ (1000 :: Rational)) . fromInteger . toNanoSecs
