@@ -43,7 +43,7 @@ checkNewCrates channel crateMap man = forever $ do
         send . PrivMsg [channel] . Text.encodeUtf8 . showCrate baseUrl
     liftIO . threadDelay $ 60 * 1000 * 1000  -- 60 seconds
   where
-    feedUrl = "https://crates.io/summary"
+    feedUrl = "https://crates.io/api/v1/summary"
     baseUrl = "https://crates.io/crates/"
 
     parseCrates :: BL.ByteString -> Maybe [Crate]
