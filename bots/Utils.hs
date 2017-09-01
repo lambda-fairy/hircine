@@ -32,7 +32,7 @@ import Hircine
 
 
 userAgent :: ByteString
-userAgent = "Brigitte (https://git.io/brigitte)"
+userAgent = "Hircine (https://git.io/hircine-issues)"
 
 
 startBot
@@ -40,10 +40,10 @@ startBot
     -> (ByteString -> Manager -> Hircine Acceptor) -> IO ()
 startBot params makeBot = do
     hSetBuffering stdout LineBuffering
-    channel <- getEnv' "BRIGITTE_CHANNEL"
-    nick <- getEnv' "BRIGITTE_NICK"
-    secret <- getEnv' "BRIGITTE_SECRET"
-    ekgPort <- fmap (read . BC.unpack) <$> getEnv "BRIGITTE_EKG_PORT"
+    channel <- getEnv' "HIRCINE_CHANNEL"
+    nick <- getEnv' "HIRCINE_NICK"
+    secret <- getEnv' "HIRCINE_SECRET"
+    ekgPort <- fmap (read . BC.unpack) <$> getEnv "HIRCINE_EKG_PORT"
     for_ ekgPort $ \p -> do
         _ <- forkServer "localhost" p
         putStrLn $ "started EKG server on port " ++ show p

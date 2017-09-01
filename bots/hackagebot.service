@@ -5,7 +5,7 @@ After=network.target
 [Service]
 ExecStart=/srv/hircine/dist/build/hackagebot/hackagebot
 EnvironmentFile=/etc/environment
-EnvironmentFile=/srv/hircine/brigitte/hackagebot.env
+EnvironmentFile=/srv/hircine/bots/hackagebot.env
 WorkingDirectory=/srv/hircine
 User=chris
 

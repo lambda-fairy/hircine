@@ -14,8 +14,8 @@ build-type: Simple
 extra-source-files: README.md
 cabal-version: >= 1.10
 
-flag brigitte
-    description: build example bot ("brigitte")
+flag bots
+    description: build Cargobot and Hackagebot
     default: False
     manual: True
 
@@ -41,14 +41,14 @@ library
     ghc-options: -Wall
 
 executable cargobot
-    hs-source-dirs: brigitte
+    hs-source-dirs: bots
     main-is: Cargobot.hs
     default-language: Haskell2010
     ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-T
     other-modules:
         Utils
 
-    if !flag(brigitte)
+    if !flag(bots)
         buildable: False
     else
         build-depends:
@@ -71,14 +71,14 @@ executable cargobot
             unordered-containers
 
 executable hackagebot
-    hs-source-dirs: brigitte
+    hs-source-dirs: bots
     main-is: Hackagebot.hs
     default-language: Haskell2010
     ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-T
     other-modules:
         Utils
 
-    if !flag(brigitte)
+    if !flag(bots)
         buildable: False
     else
         build-depends:
@@ -97,9 +97,7 @@ executable hackagebot
             text,
             tls,
             transformers,
-            unix,
-            unordered-containers,
-            xml
+            unix
 
 source-repository head
     type: git

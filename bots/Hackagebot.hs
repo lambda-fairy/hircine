@@ -17,9 +17,8 @@ import Network.Connection
 import Network.HTTP.Client
 import System.Clock
 import System.Timeout
-import Text.RSS.Import
-import Text.RSS.Syntax
-import Text.XML.Light.Input
+import Text.Feed.Import
+import Text.Feed.Query
 
 import Hircine
 
@@ -57,15 +56,14 @@ checkNewCrates crateMap newCrates man = forever $ do
   where
     feedUrl = "https://hackage.haskell.org/packages/recent.rss"
 
-    parseCrates = parseXMLDoc >=> elementToRSS >=> parseFeed
-    parseFeed = traverse parseItem . rssItems . rssChannel
+    parseCrates = parseFeedSource >=> parseFeed
+    parseFeed = traverse parseItem . getFeedItems
     parseItem item = do
-        (name, version) <- parseTitle =<< rssItemTitle item
-        (_, description) <- Text.breakOnEnd "<p>" . Text.pack <$>
-            rssItemDescription item
+        (name, version) <- parseTitle =<< getItemTitle item
+        (_, description) <- Text.breakOnEnd "<p>" <$> getItemDescription item
         return $ Crate name version description
     parseTitle title
-        | [name, version] <- Text.words $ Text.pack title = Just (name, version)
+        | [name, version] <- Text.words title = Just (name, version)
         | otherwise = Nothing
 
 
