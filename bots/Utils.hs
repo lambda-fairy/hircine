@@ -55,9 +55,10 @@ startBot params makeBot = do
     mainLoop channel nick secret man context = logExceptionsAndRetry $
         connect context params $ \conn -> do
             putStrLn $ "connected to " ++ show (connectionID conn)
+            sendLock <- newMVar ()
             let stream = makeStream
                     (connectionGetLine 1024 conn)
-                    (connectionPut conn)
+                    (\x -> withMVar sendLock $ \_ -> connectionPut conn x)
             runHircine (logMessages $ start channel nick secret man) stream
 
     start channel nick secret man = do
