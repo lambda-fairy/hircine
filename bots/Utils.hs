@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 
 module Utils where
 
@@ -22,7 +21,6 @@ import Network.Connection
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
 import Network.HTTP.Types.Status
-import Network.TLS
 import System.Clock
 import System.Posix.Env.ByteString
 import System.Remote.Monitoring
@@ -52,7 +50,7 @@ startBot params makeBot = do
     putStrLn "connecting..."
     mainLoop channel nick secret man context `finally` putStrLn "au revoir"
   where
-    mainLoop channel nick secret man context = logExceptionsAndRetry $
+    mainLoop channel nick secret man context = forever $
         connect context params $ \conn -> do
             putStrLn $ "connected to " ++ show (connectionID conn)
             sendLock <- newMVar ()
@@ -94,43 +92,6 @@ waitForWelcome = do
     when (code /= "001") $ do
         runAcceptor replyToPing message
         waitForWelcome
-
-
-logExceptionsAndRetry :: forall a. IO a -> IO a
-logExceptionsAndRetry action = do
-    now <- getMonotonicTime
-    start now 0
-  where
-    start :: TimeSpec -> Int -> IO a
-    start lastRetryTime failCount = do
-        x <- try $ try action
-        case x of
-            Right (Right r) -> return r
-            Right (Left e) -> retry lastRetryTime failCount (e :: IOException)
-            Left e -> retry lastRetryTime failCount (e :: TLSException)
-
-    retry :: Exception e => TimeSpec -> Int -> e -> IO a
-    retry lastRetryTime failCount e = do
-        printError $ show e
-        now <- getMonotonicTime
-        if now - lastRetryTime < successThreshold
-            then if failCount >= maxTries
-                then throwIO e
-                else do
-                    let delaySecs = 2 ^ failCount
-                    putStrLn $ "reconnecting in " ++ show delaySecs ++ " seconds"
-                    threadDelay $ delaySecs * 1000 * 1000
-                    start now (failCount + 1)
-            else do
-                putStrLn $ "reconnecting"
-                start lastRetryTime 0
-
--- | If a bot stays up for this long, it is considered successful.
-successThreshold :: TimeSpec
-successThreshold = TimeSpec { sec = 15 * 60, nsec = 0 }
-
-maxTries :: Int
-maxTries = 5
 
 
 makeHttpRequest :: String -> Manager -> IO (Maybe BL.ByteString)

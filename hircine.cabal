@@ -65,7 +65,6 @@ executable cargobot
             http-client-tls,
             http-types,
             text,
-            tls,
             transformers,
             unix,
             unordered-containers
@@ -95,7 +94,6 @@ executable hackagebot
             http-client-tls,
             http-types,
             text,
-            tls,
             transformers,
             unix
 
