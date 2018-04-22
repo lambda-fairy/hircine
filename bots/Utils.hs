@@ -20,7 +20,6 @@ import qualified Data.Map.Strict as Map
 import Network.Connection
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
-import Network.HTTP.Types.Status
 import System.Clock
 import System.Posix.Env.ByteString
 import System.Remote.Monitoring
@@ -94,29 +93,18 @@ waitForWelcome = do
         waitForWelcome
 
 
-makeHttpRequest :: String -> Manager -> IO (Maybe BL.ByteString)
+-- | Perform an HTTP GET request with the correct User-Agent, throwing an
+-- exception on a non-2xx response.
+makeHttpRequest :: String -> Manager -> IO BL.ByteString
 makeHttpRequest url man = do
-    r <- try $ httpLbs req man
-    case r of
-        Left e ->
-            printError' (e :: SomeException) >> return Nothing
-        Right r' | not . statusIsSuccessful $ responseStatus r' ->
-            printError' (responseStatus r') >> return Nothing
-        Right r' -> return $ Just (responseBody r')
-  where
-    req = (parseRequest_ url) { requestHeaders = [("User-Agent", userAgent)] }
+    req <- parseUrlThrow url
+    let req' = req { requestHeaders = [("User-Agent", userAgent)] }
+    responseBody <$> httpLbs req' man
 
 
 getEnv' :: ByteString -> IO ByteString
 getEnv' name = getEnv name
     >>= maybe (error $ "missing environment variable " ++ show name) return
-
-
-printError :: String -> IO ()
-printError = putStrLn . ("** ERROR: " ++)
-
-printError' :: Show a => a -> IO ()
-printError' = printError . show
 
 
 type Acceptor = ReaderT Message Hircine ()
@@ -145,6 +133,12 @@ data Crate = Crate
     } deriving (Eq, Show)
 
 
+data CrateParsingFailure = CrateParsingFailure !BL.ByteString
+    deriving (Show)
+
+instance Exception CrateParsingFailure
+
+
 type CrateMap = Map Text (Text, Text)
 
 defaultCrateMap :: CrateMap
@@ -159,15 +153,10 @@ fetchAndUpdateCrateMap
     -> Manager
     -> IO [Crate]
 fetchAndUpdateCrateMap feedUrl parseCrates crateMap man = do
-    maybeBytes <- makeHttpRequest feedUrl man
-    case maybeBytes of
-        Just bytes -> case parseCrates bytes of
-            Just crates -> atomicModifyIORef' crateMap $ updateCrateMap crates
-            Nothing -> do
-                printError "could not parse packages!!!"
-                print bytes
-                return []
-        Nothing -> return []
+    bytes <- makeHttpRequest feedUrl man
+    case parseCrates bytes of
+        Just crates -> atomicModifyIORef' crateMap $ updateCrateMap crates
+        Nothing -> throwIO $ CrateParsingFailure bytes
 
 -- | Update the internal crate map. Return the set of crates that were changed.
 -- The list of changed crates is sorted in ascending order by name.

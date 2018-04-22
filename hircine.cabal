@@ -63,7 +63,6 @@ executable cargobot
             hircine,
             http-client,
             http-client-tls,
-            http-types,
             text,
             transformers,
             unix,
@@ -92,7 +91,6 @@ executable hackagebot
             hircine,
             http-client,
             http-client-tls,
-            http-types,
             text,
             transformers,
             unix
