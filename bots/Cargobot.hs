@@ -41,7 +41,7 @@ checkNewCrates channel crateMap man = forever $ do
     changedCrates <- liftIO $ fetchAndUpdateCrateMap feedUrl parseCrates crateMap man
     buffer . for_ changedCrates $
         send . PrivMsg [channel] . Text.encodeUtf8 . showCrate baseUrl
-    liftIO . threadDelay $ 60 * 1000 * 1000  -- 60 seconds
+    liftIO . threadDelay $ 5 * 60 * 1000 * 1000  -- 5 minutes
   where
     feedUrl = "https://crates.io/api/v1/summary"
     baseUrl = "https://crates.io/crates/"
