@@ -99,6 +99,7 @@ makeHttpRequest :: String -> Manager -> IO BL.ByteString
 makeHttpRequest url man = do
     req <- parseUrlThrow url
     let req' = req { requestHeaders = [("User-Agent", userAgent)] }
+    putStrLn $ "GET " ++ url
     responseBody <$> httpLbs req' man
 
 
@@ -144,6 +145,7 @@ type CrateMap = Map Text (Text, Text)
 defaultCrateMap :: CrateMap
 defaultCrateMap = Map.empty
 
+-- | Poll the given feed for new packages and return a list of updates.
 fetchAndUpdateCrateMap
     :: String
         -- ^ URL to package feed
@@ -155,8 +157,19 @@ fetchAndUpdateCrateMap
 fetchAndUpdateCrateMap feedUrl parseCrates crateMap man = do
     bytes <- makeHttpRequest feedUrl man
     case parseCrates bytes of
-        Just crates -> atomicModifyIORef' crateMap $ updateCrateMap crates
+        Just newCrates -> do
+            (changedCrates, oldCrates) <- atomicModifyIORef' crateMap $
+                \oldCrates ->
+                    let (newCrates', changedCrates) = updateCrateMap newCrates oldCrates
+                    in  (newCrates', (changedCrates, oldCrates))
+            when (not (null changedCrates)) $ do
+                putStrLn $ "old crates: " ++ debugCrates (fromCrateMap oldCrates)
+                putStrLn $ "new crates: " ++ debugCrates newCrates
+                putStrLn $ "changed crates: " ++ debugCrates changedCrates
+            return changedCrates
         Nothing -> throwIO $ CrateParsingFailure bytes
+  where
+    debugCrates = Text.unpack . Text.intercalate ", " . map showCrateNameVersion
 
 -- | Update the internal crate map. Return the set of crates that were changed.
 -- The list of changed crates is sorted in ascending order by name.
