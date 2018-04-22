@@ -49,7 +49,7 @@ startBot params makeBot = do
     putStrLn "connecting..."
     mainLoop channel nick secret man context `finally` putStrLn "au revoir"
   where
-    mainLoop channel nick secret man context = forever $
+    mainLoop channel nick secret man context =
         connect context params $ \conn -> do
             putStrLn $ "connected to " ++ show (connectionID conn)
             sendLock <- newMVar ()
