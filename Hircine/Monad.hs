@@ -17,8 +17,6 @@ module Hircine.Monad (
     ) where
 
 
-import Control.Concurrent
-import Control.Exception
 import Control.Monad
 import Control.Monad.Trans.Reader
 import Data.IORef
@@ -67,15 +65,4 @@ fork h = ReaderT $ void . SlaveThread.fork . runReaderT h
 
 
 runHircine :: Hircine a -> Stream -> IO a
-runHircine h s = do
-    stopped <- newEmptyMVar
-    -- Run the inner action in a separate thread, so that the lifetime of any
-    -- further slave threads are tied to that of the action itself.
-    bracket
-        (forkFinally (runReaderT h s) (putMVar stopped))
-        killThread
-        (\_ -> takeThrowMVar stopped)
-
-
-takeThrowMVar :: MVar (Either SomeException a) -> IO a
-takeThrowMVar = takeMVar >=> either throwIO return
+runHircine = runReaderT
